@@ -823,190 +823,45 @@ def generate_report_with_background_api(pdf_path, position, candidate_name,backg
 
     resume_text= evaluate_cv_presentation(pdf_path)
 
-    # Inicializar corrector ortográfico
-    spell = SpellChecker(language='es')
+    def evaluate_presentation_gemini(resume_text, position): # Añadir 'position' como contexto, opcional pero útil
+    """
+    Evalúa la presentación general de la hoja de vida usando Gemini, con criterios definidos.
+    """
+    try:
+        model = genai.GenerativeModel(MODELO_GEMINI)
+        prompt_consejos = f"""
+            Instrucciones: Eres un experto en recursos humanos evaluando hojas de vida para el cargo de '{position}'.  Evalúa la PRESENTACIÓN de la siguiente hoja de vida usando los siguientes criterios, en una escala de 1 a 5 (1=muy malo, 5=excelente). Proporciona un puntaje para cada criterio y un puntaje general promedio.  Responde en formato JSON:\n\nCriterios de Evaluación:\n1. Claridad y Concisión: ¿Qué tan fácil es entender la hoja de vida? ¿El lenguaje es claro y directo?\n2. Profesionalismo: ¿Proyecta una imagen profesional? ¿El tono es adecuado?\n3. Impacto y Persuasión: ¿Destaca las fortalezas del candidato de forma convincente para el cargo?\n\nHoja de vida:\n{resume_text}\n\nRespuesta en formato JSON, incluyendo 'clarity_score', 'professionalism_score', 'impact_score', y 'overall_presentation_score':
+            """
+        response = model.generate_content([prompt_consejos])
+        respuesta_texto = response.text.strip()
+        try:
+            resultados_presentacion = json.loads(respuesta_texto) # Esperar respuesta JSON
+            return resultados_presentacion
+        except json.JSONDecodeError:
+            print(f"⚠️ Respuesta de Gemini no es JSON válido: '{respuesta_texto}'.")
+            return None
 
-    punctuation_errors = 0
+    except Exception as e:
+        print(f"⚠️ Error al usar Gemini para evaluate_presentation_gemini: {e}")
+        return None
 
-    for i, line in enumerate(lines):
-        # Verificar si la oración termina con puntuación válida
-        if not line.endswith((".", "!", "?")):
-            punctuation_errors += 1
+    presentation_scores = evaluate_presentation_gemini(resume_text, position) # Llama a Gemini para evaluar la presentación
 
-    # Limpiar y dividir el texto en líneas
-    pres_cleaned_lines = [line.strip() for line in resume_text.split("\n") if line.strip()]
-    total_lines = len(pres_cleaned_lines)
-
-    # Métricas
-    total_words = 0
-    spelling_errors = 0
-    missing_capitalization = 0
-    incomplete_sentences = 0
-    punctuation_marks = 0
-    grammar_errors = 0
-
-    for line in pres_cleaned_lines:
-        # Dividir en palabras y contar
-        words = re.findall(r'\b\w+\b', line)
-        total_words += len(words)
-
-        # Ortografía
-        misspelled = spell.unknown(words)
-        spelling_errors += len(misspelled)
-
-        # Verificar capitalización
-        if line and not line[0].isupper():
-            missing_capitalization += 1
-
-        # Verificar que termine en signo de puntuación
-        if not line.endswith((".", "!", "?", ":", ";")):
-            incomplete_sentences += 1
-
-        # Gramática básica: verificar patrones comunes (ejemplo)
-        grammar_errors += len(re.findall(r'\b(?:es|está|son)\b [^\w\s]', line))  # Ejemplo: "es" sin continuación válida
-
-    # Calcular métricas secundarias
-    spelling = 1- (spelling_errors / total_words)
-    capitalization_score = 1- (missing_capitalization / total_lines)
-    sentence_completion_score = 1- (incomplete_sentences / total_lines)
-    grammar = 1- (grammar_errors / total_lines)
-    punctuation_error_rate = 1- (punctuation_errors / total_lines)
-
-    #Calcular métricas principales
-    grammar_score = round(((punctuation_error_rate+ grammar+ sentence_completion_score)/3)*5, 2)
-    spelling_score= round(((spelling+ capitalization_score)/2)*5,2)
-
-    if total_lines == 0:
-        return 100  # Si no hay oraciones, asumimos coherencia perfecta.
-
-    # Calcular métricas coherencia
-    # 1. Repetición de palabras
-    def calculate_word_repetition(pres_cleaned_lines):
-        repeated_words = Counter()
-        for line in pres_cleaned_lines:
-            words = line.split()
-            repeated_words.update([word.lower() for word in words])
-
-        total_words = sum(repeated_words.values())
-        unique_words = len(repeated_words)
-        most_common_word_count = repeated_words.most_common(1)[0][1] if repeated_words else 0
-        repeated_word_ratio = (most_common_word_count / total_words) if total_words > 0 else 0
-
-        # Una menor repetición indica mayor calidad
-        repetition_score = 1 - repeated_word_ratio
-        return repetition_score, repeated_words
-
-    # 2. Fluidez entre oraciones
-    def calculate_sentence_fluency(pres_cleaned_lines):
-        """
-        Calcula el puntaje de fluidez de las oraciones basándose en conectores lógicos, puntuación,
-        y variabilidad en la longitud de las oraciones.
-        :param pres_cleaned_lines: Lista de líneas limpias del texto.
-        :return: Puntaje de fluidez de las oraciones entre 0 y 1.
-        """
-        # Lista de conectores lógicos comunes
-        logical_connectors = {
-        "adición": [
-            "además", "también", "asimismo", "igualmente", "de igual manera",
-            "por otro lado", "de la misma forma", "junto con"
-        ],
-        "causa": [
-            "porque", "ya que", "debido a", "dado que", "por motivo de",
-            "gracias a", "en razón de", "a causa de"
-        ],
-        "consecuencia": [
-            "por lo tanto", "así que", "en consecuencia", "como resultado",
-            "por esta razón", "de modo que", "lo que permitió", "de ahí que"
-        ],
-        "contraste": [
-            "sin embargo", "pero", "aunque", "no obstante", "a pesar de",
-            "por el contrario", "en cambio", "si bien", "mientras que"
-        ],
-        "condición": [
-            "si", "en caso de", "a menos que", "siempre que", "con la condición de",
-            "a no ser que", "en el supuesto de que"
-        ],
-        "tiempo": [
-            "mientras", "cuando", "después de", "antes de", "al mismo tiempo",
-            "posteriormente", "una vez que", "simultáneamente", "en el transcurso de"
-        ],
-        "descripción de funciones": [
-            "encargado de", "responsable de", "mis funciones incluían",
-            "lideré", "gestioné", "coordiné", "dirigí", "supervisé",
-            "desarrollé", "planifiqué", "ejecuté", "implementé", "organicé"
-        ],
-        "logros y resultados": [
-            "logré", "alcancé", "conseguí", "incrementé", "reduje",
-            "optimizé", "mejoré", "aumenté", "potencié", "maximicé",
-            "contribuí a", "obtuve", "permitió mejorar", "impactó positivamente en"
-        ],
-        "secuencia": [
-            "primero", "en primer lugar", "a continuación", "luego", "después",
-            "seguidamente", "posteriormente", "finalmente", "por último"
-        ],
-        "énfasis": [
-            "sobre todo", "en particular", "especialmente", "principalmente",
-            "específicamente", "vale la pena destacar", "conviene resaltar",
-            "cabe mencionar", "es importante señalar"
-        ],
-        "conclusión": [
-            "en resumen", "para concluir", "en definitiva", "en síntesis",
-            "como conclusión", "por ende", "por consiguiente", "para finalizar"
-        ]
-    }
-        connector_count = 0
-        total_lines = len(pres_cleaned_lines)
-
-        # Validación para evitar divisiones por cero
-        if total_lines == 0:
-            return 0  # Sin líneas, no se puede calcular fluidez
-
-        # Inicialización de métricas
-        punctuation_errors = 0
-        sentence_lengths = []
-
-        for line in pres_cleaned_lines:
-            # Verificar errores de puntuación (oraciones sin punto final)
-            if not line.endswith((".", "!", "?")):
-                punctuation_errors += 1
-
-            # Almacenar la longitud de cada oración
-            sentence_lengths.append(len(line.split()))
-
-            # Contar conectores lógicos en la línea
-            for connector in logical_connectors:
-                if connector in line.lower():
-                    connector_count += 1
-
-        # Calcular métricas individuales
-        avg_length = sum(sentence_lengths) / total_lines
-        length_variance = sum(
-            (len(line.split()) - avg_length) ** 2 for line in pres_cleaned_lines
-        ) / total_lines if total_lines > 1 else 0
-
-        # Normalizar métricas entre 0 y 1
-        punctuation_score = max(0, 1 - (punctuation_errors / total_lines))  # 1 si no hay errores
-        connector_score = min(1, connector_count / total_lines)  # Máximo 1, basado en conectores
-        variance_penalty = max(0, 1 - length_variance / avg_length) if avg_length > 0 else 0
-
-        # Calcular puntaje final de fluidez
-        fluency_score = (punctuation_score + connector_score + variance_penalty) / 3
-        return round(fluency_score, 2)
-
-
-    # Calcular métricas individuales
-    repetition_score, repeated_words = calculate_word_repetition(pres_cleaned_lines)
-    fluency_score = calculate_sentence_fluency(pres_cleaned_lines)
-
-    # Asegurar que repetition_score y fluency_score están entre 0 y 1 antes de la conversión
-    normalized_repetition_score = min(1, max(0, repetition_score))
-    normalized_fluency_score = min(1, max(0, fluency_score))
-
-    # Calcular coherencia asegurando que el resultado final no pase de 5
-    coherence_score = round(min(5, (normalized_repetition_score + normalized_fluency_score) * 2.5), 2)
-
-    # Puntaje general ponderado
-    overall_score = round((spelling_score  + coherence_score + grammar_score) / 3, 2)
+    if not presentation_scores: # Manejar el caso de error en la llamada a Gemini
+        coherence_score = 0 # Puntajes por defecto si falla la API de Gemini
+        spelling_score = 0
+        grammar_score = 0
+        overall_score = 0
+    else:
+        clarity_score = presentation_scores.get("clarity_score", 0)
+        professionalism_score = presentation_scores.get("professionalism_score", 0)
+        impact_score = presentation_scores.get("impact_score", 0)
+        overall_presentation_score = presentation_scores.get("overall_presentation_score", 0)
+        # (Si también quieres calcular puntajes de ortografía/gramática basados en reglas, puedes mantenerlos y combinarlos si lo deseas)
+        coherence_score = 0 # (Ejemplo: Eliminar o poner en 0 las métricas rule-based si solo usas Gemini)
+        spelling_score = 0
+        grammar_score = 0
+        overall_score = overall_presentation_score
 
     # Calculo puntajes parciales
     parcial_exp_func_score = round((parcial_exp_func_match * 5) / 100, 2)
@@ -1227,23 +1082,23 @@ def generate_report_with_background_api(pdf_path, position, candidate_name,backg
 
     elements.append(Spacer(1, 0.2 * inch))
 
-    # Añadir resultados al reporte
+   # Añadir resultados al reporte (TABLA DE PRESENTACIÓN)
     elements.append(Paragraph("<b>Evaluación de la Presentación:</b>", styles['CenturyGothicBold']))
     elements.append(Spacer(1, 0.2 * inch))
 
-    # Crear tabla de evaluación de presentación
+    # Crear tabla de evaluación de presentación 
     presentation_table = Table(
         [
-            ["Criterio", "Puntaje"],
-            ["Coherencia", f"{coherence_score:.2f}"],
-            ["Ortografía", f"{spelling_score:.2f}"],
-            ["Gramática", f"{grammar_score:.2f}"],
-            ["Puntaje Total", f"{overall_score:.2f}"]
+            ["Criterio", "Puntaje (Escala 1-5)"], # Encabezado ajustado para reflejar la escala
+            ["Claridad y Concisión", f"{clarity_score:.2f}"],
+            ["Profesionalismo", f"{professionalism_score:.2f}"],
+            ["Impacto y Persuasión", f"{impact_score:.2f}"],
+            ["Puntaje Total de Presentación", f"{overall_presentation_score:.2f}"]
         ],
-        colWidths=[3 * inch, 2 * inch]
+        colWidths=[4 * inch, 2 * inch] # Ancho de columnas ajustado para mejor lectura
     )
 
-    # Estilo de la tabla
+    # Estilo de la tabla (SE MANTIENE EL ESTILO EXISTENTE)
     presentation_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F0F0F0")),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
