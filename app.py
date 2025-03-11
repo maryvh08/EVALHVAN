@@ -1482,25 +1482,32 @@ def generate_report_with_background_api(pdf_path, position, candidate_name,backg
 
     return pdf_base64_string, output_path # Return base64 string and report path
 
-def calculate_indicators_for_report_gemini(lines, position, indicator_descriptions): # Añadir indicator_descriptions
+def calculate_indicators_for_report_gemini(lines, position, chapter, indicator_descriptions, indicators_keywords):
     """
-    Calcula los porcentajes de relevancia de indicadores para el reporte usando Gemini.
+    Calcula los porcentajes de relevancia de indicadores para el reporte usando Gemini y palabras clave específicas del capítulo.
     :param lines: Lista de líneas de la sección relevante del CV.
-    :param position: Cargo al que aspira (para obtener las descripciones de indicadores).
-    :param indicator_descriptions: Diccionario con descripciones de indicadores para el cargo.
+    :param position: Cargo al que aspira.
+    :param chapter: Capítulo de la organización del aspirante.
+    :param indicator_descriptions: Diccionario con descripciones de indicadores (desde advice.json).
+    :param indicators_keywords: Diccionario anidado con palabras clave de indicators.json (Capítulo -> Cargo -> Indicador -> [palabras clave]).
     :return: Diccionario con los porcentajes por indicador y detalles de líneas relevantes.
     """
     indicator_results = {}
-    for indicator, description_list in indicator_descriptions.items(): # Iterar sobre descriptions
-        if description_list: # Asegurarse de que la lista de descripciones no esté vacía
-            indicator_description = description_list[0] # Tomar la primera descripción como ejemplo (puedes ajustarlo)
+    for indicator, description_list in indicator_descriptions.items():
+        if description_list:
+            indicator_description = description_list[0]
         else:
             print(f"⚠️ No se encontró descripción para el indicador '{indicator}' en advice.json para el cargo '{position}'.")
-            indicator_description = f"Indicador: {indicator}." # Descripción genérica si no se encuentra
+            indicator_description = f"Indicador: {indicator}."
+
+        # 📌 Obtener palabras clave específicas del capítulo, cargo e indicador
+        chapter_keywords_data = indicators_keywords.get(chapter, {})
+        position_keywords_data = chapter_keywords_data.get(position, {})
+        indicator_keywords = position_keywords_data.get(indicator, []) # Lista de palabras clave para este indicador
 
         relevant_lines_count = 0
         for line in lines:
-            if is_relevant_for_indicator_gemini(line, indicator_description, indicator=indicator, position=position): # Pasar indicator e position
+            if is_relevant_for_indicator_gemini(line, indicator_description, indicator=indicator, position=position, chapter_keywords=indicator_keywords): # Pasar palabras clave
                 relevant_lines_count += 1
 
         total_lines = len(lines)
@@ -1509,25 +1516,34 @@ def calculate_indicators_for_report_gemini(lines, position, indicator_descriptio
     return indicator_results
 
 
-def is_relevant_for_indicator_gemini(line, indicator_description, indicator, position): # Añadir indicator y position
+def is_relevant_for_indicator_gemini(line, indicator_description, indicator, position, chapter_keywords):
     """
-    Determina si una línea de texto es semánticamente relevante para un indicador usando Gemini.
+    Determina si una línea de texto es semánticamente relevante para un indicador usando Gemini, 
+    opcionalmente guiado por palabras clave específicas del capítulo.
     :param line: Línea de texto del CV a evaluar.
     :param indicator_description: Descripción del indicador (desde advice.json).
-    :param indicator: Nombre del indicador (para debugging).
-    :param position: Cargo (para debugging).
+    :param indicator: Nombre del indicador.
+    :param position: Cargo.
+    :param chapter_keywords: Lista de palabras clave específicas del capítulo para este indicador (desde indicators.json).
     """
     if not line or not indicator_description:
         return False
 
+    prompt_keywords_context = "" # Inicializar contexto de palabras clave vacío
+    if chapter_keywords: # Si hay palabras clave específicas para el capítulo
+        keywords_str = ", ".join(chapter_keywords)
+        prompt_keywords_context = f"\n\nPalabras clave guía para este indicador (específicas del capítulo): {keywords_str}. Considera estas palabras clave como ejemplos de términos relacionados con el indicador."
+
+
     try:
         model = genai.GenerativeModel(MODELO_GEMINI)
         prompt = f"""
-            Instrucciones: Eres un evaluador de hojas de vida. Determina si la siguiente línea de texto de una hoja de vida es **relevante** para el siguiente indicador, basándote en su descripción. Responde **'Sí'** o **'No'** solamente.
+            Instrucciones: Eres un evaluador de hojas de vida experto en ANEIAP. Determina si la siguiente línea de texto de una hoja de vida es **relevante** para el siguiente indicador, basándote en su descripción y en las palabras clave guía proporcionadas. Responde **'Sí'** o **'No'** solamente.
 
             Cargo del candidato: {position}
             Indicador a evaluar: {indicator}
             Descripción del indicador: {indicator_description}
+            {prompt_keywords_context} # Añadir contexto de palabras clave al prompt
 
             Línea de texto de la hoja de vida:
             {line}
