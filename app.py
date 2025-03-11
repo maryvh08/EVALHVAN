@@ -191,6 +191,28 @@ def calculate_indicators_for_report_gemini(lines, position_indicators): # Nueva 
         percentage = (relevant_lines_count / total_lines) * 100 if total_lines > 0 else 0
         indicator_results[indicator] = {"percentage": percentage, "relevant_lines": relevant_lines_count}
     return indicator_results
+
+def evaluate_presentation_gemini(resume_text, position): # Añadir 'position' como contexto, opcional pero útil
+    """
+    Evalúa la presentación general de la hoja de vida usando Gemini, con criterios definidos.
+    """
+    try:
+        model = genai.GenerativeModel(MODELO_GEMINI)
+        prompt_consejos = f"""
+            Instrucciones: Eres un experto en recursos humanos evaluando hojas de vida para el cargo de '{position}'.  Evalúa la PRESENTACIÓN de la siguiente hoja de vida usando los siguientes criterios, en una escala de 1 a 5 (1=muy malo, 5=excelente). Proporciona un puntaje para cada criterio y un puntaje general promedio.  Responde en formato JSON:\n\nCriterios de Evaluación:\n1. Claridad y Concisión: ¿Qué tan fácil es entender la hoja de vida? ¿El lenguaje es claro y directo?\n2. Profesionalismo: ¿Proyecta una imagen profesional? ¿El tono es adecuado?\n3. Impacto y Persuasión: ¿Destaca las fortalezas del candidato de forma convincente para el cargo?\n\nHoja de vida:\n{resume_text}\n\nRespuesta en formato JSON, incluyendo 'clarity_score', 'professionalism_score', 'impact_score', y 'overall_presentation_score':
+            """
+        response = model.generate_content([prompt_consejos])
+        respuesta_texto = response.text.strip()
+        try:
+            resultados_presentacion = json.loads(respuesta_texto) # Esperar respuesta JSON
+            return resultados_presentacion
+        except json.JSONDecodeError:
+            print(f"⚠️ Respuesta de Gemini no es JSON válido: '{respuesta_texto}'.")
+            return None
+
+    except Exception as e:
+        print(f"⚠️ Error al usar Gemini para evaluate_presentation_gemini: {e}")
+        return None
     
 # Función para calcular la similitud usando TF-IDF y similitud de coseno
 def clean_text(text):
@@ -822,28 +844,6 @@ def generate_report_with_background_api(pdf_path, position, candidate_name,backg
         parcial_att_profile_match = 0
 
     resume_text= evaluate_cv_presentation(pdf_path)
-
-    def evaluate_presentation_gemini(resume_text, position): # Añadir 'position' como contexto, opcional pero útil
-    """
-    Evalúa la presentación general de la hoja de vida usando Gemini, con criterios definidos.
-    """
-    try:
-        model = genai.GenerativeModel(MODELO_GEMINI)
-        prompt_consejos = f"""
-            Instrucciones: Eres un experto en recursos humanos evaluando hojas de vida para el cargo de '{position}'.  Evalúa la PRESENTACIÓN de la siguiente hoja de vida usando los siguientes criterios, en una escala de 1 a 5 (1=muy malo, 5=excelente). Proporciona un puntaje para cada criterio y un puntaje general promedio.  Responde en formato JSON:\n\nCriterios de Evaluación:\n1. Claridad y Concisión: ¿Qué tan fácil es entender la hoja de vida? ¿El lenguaje es claro y directo?\n2. Profesionalismo: ¿Proyecta una imagen profesional? ¿El tono es adecuado?\n3. Impacto y Persuasión: ¿Destaca las fortalezas del candidato de forma convincente para el cargo?\n\nHoja de vida:\n{resume_text}\n\nRespuesta en formato JSON, incluyendo 'clarity_score', 'professionalism_score', 'impact_score', y 'overall_presentation_score':
-            """
-        response = model.generate_content([prompt_consejos])
-        respuesta_texto = response.text.strip()
-        try:
-            resultados_presentacion = json.loads(respuesta_texto) # Esperar respuesta JSON
-            return resultados_presentacion
-        except json.JSONDecodeError:
-            print(f"⚠️ Respuesta de Gemini no es JSON válido: '{respuesta_texto}'.")
-            return None
-
-    except Exception as e:
-        print(f"⚠️ Error al usar Gemini para evaluate_presentation_gemini: {e}")
-        return None
 
     presentation_scores = evaluate_presentation_gemini(resume_text, position) # Llama a Gemini para evaluar la presentación
 
@@ -1882,190 +1882,28 @@ def analyze_and_generate_descriptive_report_with_background_api(pdf_path, positi
     if not text_data:
         return None, "No se pudo extraer texto del archivo PDF."
 
-    # Instanciar el corrector ortográfico
-    spell = SpellChecker()
+    # 📌 Evaluación de la PRESENTACIÓN usando Gemini (NUEVO - INTEGRACIÓN DE GEMINI)
+    resume_text = "" # Inicializar variable para el texto de la hoja de vida para la evaluación de presentación
+    text_data = extract_text_with_headers_and_details(pdf_path) # Extraer texto con encabezados y detalles
+    if text_data: # Si se extrajo texto con encabezados y detalles (para descriptive version)
+        resume_text = " ".join([" ".join(details) for details in text_data.values()]) # Unir todos los detalles para la evaluación de presentación
+    else: # Si no se pudo extraer con encabezados y detalles (fallback - usar extracción OCR general)
+        resume_text= evaluate_cv_presentation(pdf_path) # Usar texto OCR general como fallback
+        if not resume_text:
+            return None, "No se pudo extraer el texto de la hoja de vida para la evaluación de presentación."
 
-    # 📌 **Evaluación avanzada de presentación**
-    def evaluate_spelling(text):
-        """Evalúa la ortografía y devuelve un puntaje entre 0 y 100, optimizando la búsqueda."""
-        if not text or not isinstance(text, str) or len(text.strip()) == 0:
-            return 100
+   presentation_scores = evaluate_presentation_gemini(resume_text, position) # Llama a Gemini para evaluar la presentación
 
-        words = re.findall(r'\b\w+\b', text.lower())  # Extraer palabras sin puntuación
-        total_words = len(words)
-
-        if total_words < 5:
-            return 100
-
-        misspelled_words = set(spell.unknown(words))  # Usar set() para búsquedas rápidas
-        misspelled_count = len(misspelled_words)
-
-        # **📌 Aplicar penalización con ponderación menor**
-        spelling_score = max(0, 100 - (misspelled_count / total_words) * 150)
-
-        return round(spelling_score, 2)
-
-
-    def evaluate_capitalization(text):
-        """Evalúa la gramática basándose en concordancia de tiempos verbales, estructura de oraciones y redundancias."""
-        if not text or not isinstance(text, str) or len(text.strip()) == 0:
-            return 100  # Si no hay texto, asumimos puntaje perfecto
-
-        sentences = re.split(r'[.!?]\s*', text.strip())[:20]  # Limitar a 20 frases para optimizar rendimiento
-        words = re.findall(r'\b\w+\b', text.lower())
-        total_sentences = len(sentences)
-        total_words = len(words)
-
-        if total_sentences == 0 or total_words == 0:
-            return 100  # Evitar división por 0
-
-        # 📌 **1️⃣ Concordancia de tiempos verbales**
-        verb_tenses = {
-        "presente": [
-            "es", "tiene", "hace", "puede", "debe", "quiere", "está", "lidera", "coordina", "organiza",
-            "gestiona", "asiste", "supervisa", "evalúa", "dirige", "crea", "redacta", "contacta",
-            "realiza", "participa", "documenta", "establece", "facilita", "desarrolla", "analiza"
-        ],
-        "pasado": [
-            "fue", "tuvo", "hizo", "pudo", "debía", "quiso", "estaba", "lideró", "coordinó", "organizó",
-            "gestionó", "asistió", "supervisó", "evaluó", "dirigió", "creó", "redactó", "contactó",
-            "realizó", "participó", "documentó", "estableció", "facilitó", "desarrolló", "analizó"
-        ],
-        "futuro": [
-            "será", "tendrá", "hará", "podrá", "deberá", "querrá", "estará", "liderará", "coordinará",
-            "organizará", "gestionará", "asistirá", "supervisará", "evaluará", "dirigirá", "creará",
-            "redactará", "contactará", "realizará", "participará", "documentará", "establecerá",
-            "facilitará", "desarrollará", "analizará"
-        ]
-    }
-
-        # 📌 **1️⃣ Concordancia de tiempos verbales**
-        verb_counts = {tense: sum(1 for word in words if word in verb_tenses[tense]) for tense in verb_tenses}
-        max_tense_count = max(verb_counts.values(), default=1)
-        inconsistent_tenses = sum(1 for tense in verb_tenses if verb_counts[tense] > 0 and verb_counts[tense] < max_tense_count * 0.3)
-        tense_score = max(0, 100 - inconsistent_tenses * 20)  # Penaliza si hay cambios abruptos de tiempos verbales
-
-        # 📌 **2️⃣ Evaluación de estructura de oraciones**
-        structure_errors = sum(1 for sentence in sentences if not re.search(r"\b\w+\b\s+\b\w+\b", sentence))
-        structure_score = max(0, 100 - (structure_errors / total_sentences) * 100)
-
-        # 📌 **3️⃣ Identificación de redundancias**
-        redundant_phrases = {"además también", "pero sin embargo", "subir arriba", "bajar abajo"}
-        redundant_count = sum(1 for phrase in redundant_phrases if phrase in text.lower())
-        redundancy_score = max(0, 100 - redundant_count * 25)
-
-        # 📌 **Puntaje Final de Gramática**
-        capitalization_score = round((tense_score + structure_score + redundancy_score)/3, 2)
-
-        return capitalization_score
-
-
-    def evaluate_sentence_coherence(text):
-        """
-        Evalúa la coherencia del texto en función de conectores lógicos, longitud de frases, transiciones,
-        repetición de ideas y la estructura sintáctica.
-        :param text: Texto a evaluar.
-        :return: Puntaje de coherencia entre 0 y 100.
-        """
-        if not text or not isinstance(text, str):
-            return 50  # Devolver un puntaje intermedio si el texto está vacío o no es válido
-
-        sentences = re.split(r'[.!?]\s*', text.strip())  # Dividir en oraciones
-        sentences = [sentence for sentence in sentences if sentence]  # Filtrar oraciones vacías
-        total_sentences = len(sentences)
-
-        words = text.split()
-        total_words = len(words)
-
-        if total_words == 0 or total_sentences == 0:
-            return 100  # Si no hay texto, asumimos coherencia perfecta
-
-        # **1️⃣ Uso de conectores lógicos (Evaluación de cohesión)**
-        logical_connectors = {
-            "adición": ["además", "también", "igualmente", "asimismo"],
-            "causa": ["porque", "ya que", "debido a", "dado que"],
-            "consecuencia": ["por lo tanto", "así que", "en consecuencia", "de modo que"],
-            "contraste": ["sin embargo", "pero", "aunque", "no obstante"],
-            "condición": ["si", "en caso de", "a menos que"],
-            "tiempo": ["mientras", "cuando", "después de", "antes de"],
-        }
-
-        connector_count = sum(
-            1 for word in words if any(word.lower() in group for group in logical_connectors.values())
-        )
-        connector_ratio = connector_count / total_sentences if total_sentences > 0 else 0
-        connector_score = min(100, connector_ratio * 200)  # Escalar a 100
-
-        # **2️⃣ Consistencia en la longitud de frases**
-        sentence_lengths = [len(sentence.split()) for sentence in sentences]
-        avg_length = sum(sentence_lengths) / total_sentences
-        length_variance = sum((len(sentence.split()) - avg_length) ** 2 for sentence in sentences) / total_sentences
-        length_variance_penalty = max(0, 100 - length_variance * 5)  # Penalización por variabilidad excesiva
-
-        # **3️⃣ Transiciones entre frases**
-        transition_words = ["entonces", "así", "por otro lado", "de esta manera", "en este sentido", "por ende"]
-        transition_count = sum(
-            1 for sentence in sentences if any(word in sentence.lower() for word in transition_words)
-        )
-        transition_score = (transition_count / total_sentences) * 100 if total_sentences > 0 else 0
-
-        # **4️⃣ Evitar repeticiones excesivas de palabras clave**
-        word_counts = Counter(words)
-        repeated_words = {word: count for word, count in word_counts.items() if count > 3}
-        repeated_ratio = sum(repeated_words.values()) / total_words if total_words > 0 else 0
-        repetition_penalty = min(100, repeated_ratio * 200)  # Penalización basada en la repetición excesiva
-
-        # **5️⃣ Evaluación de variabilidad léxica**
-        unique_words = len(set(words))
-        lexical_diversity = (unique_words / total_words) * 100 if total_words > 0 else 100
-        lexical_score = max(0, min(100, lexical_diversity))
-
-        # **📌 Ponderación de los factores**
-        coherence_score = (
-            (connector_score * 0.3) +  # Uso de conectores
-            (length_variance_penalty * 0.2) +  # Consistencia en la longitud de frases
-            (transition_score * 0.2) +  # Uso de transiciones
-            ((100 - repetition_penalty) * 0.2) +  # Penalización por repeticiones
-            (lexical_score * 0.1)  # Variedad léxica
-        )
-
-        return round(coherence_score, 2)
-
-
-    # 📌 **Evaluación por encabezado y detalles**
-    presentation_results = {}
-    for header, details in text_data.items():
-        details_text = " ".join(details)
-
-        # 📌 **Evaluar encabezado**
-        header_spelling = evaluate_spelling(header)
-        header_capitalization = evaluate_capitalization(header)
-        header_coherence = evaluate_sentence_coherence(header)
-
-        header_overall = round((header_spelling + header_capitalization + header_coherence) / 3, 2)
-
-        # 📌 **Evaluar detalles**
-        details_spelling = evaluate_spelling(details_text)
-        details_capitalization = evaluate_capitalization(details_text)
-        details_coherence = evaluate_sentence_coherence(details_text)
-
-        details_overall = round((details_spelling + details_capitalization + details_coherence) / 3, 2)
-
-        # 📌 **Guardar resultados en la estructura final**
-        presentation_results[header] = {
-            "header_score": {
-                "spelling_score": header_spelling,
-                "capitalization_score": header_capitalization,
-                "coherence_score": header_coherence,
-                "overall_score": header_overall,
-            },
-            "details_score": {
-                "spelling_score": details_spelling,
-                "capitalization_score": details_capitalization,
-                "coherence_score": details_coherence,
-                "overall_score": details_overall,
-            },
-        }
+    if not presentation_scores: # Manejar el caso de error en la llamada a Gemini
+        clarity_score = 0  # Puntajes por defecto si falla la API de Gemini
+        professionalism_score = 0
+        impact_score = 0
+        round_overall_score = 0 # Usar round_overall_score para consistencia en la función
+    else:
+        clarity_score = presentation_scores.get("clarity_score", 0)
+        professionalism_score = presentation_scores.get("professionalism_score", 0)
+        impact_score = presentation_scores.get("impact_score", 0)
+        round_overall_score = presentation_scores.get("overall_presentation_score", 0) # Usar round_overall_score para consistencia
 
     # Calculo puntajes parciales
     exp_func_score = round((parcial_exp_func_match * 5) / 100, 2)
