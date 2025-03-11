@@ -163,27 +163,35 @@ def calculate_all_indicators(lines, position_indicators):
         indicator_results[indicator] = (relevant_lines / total_lines) * 100  # Cálculo del porcentaje
     return indicator_results
 
-def calculate_indicators_for_report(lines, position_indicators):
+def is_relevant_for_indicator_gemini(line, indicator_description):
     """
-    Calcula los porcentajes de relevancia de indicadores para el reporte.
-    :param lines: Lista de líneas de la sección "EXPERIENCIA EN ANEIAP".
-    :param position_indicators: Diccionario de indicadores y palabras clave del cargo.
-    :return: Diccionario con los porcentajes por indicador y detalles de líneas relevantes.
+    Determina si una línea de texto es semánticamente relevante para un indicador usando Gemini.
     """
-    total_lines = len(lines)
-    if total_lines == 0:
-        return {indicator: {"percentage": 0, "relevant_lines": 0} for indicator in position_indicators}
+    try:
+        model = genai.GenerativeModel(MODELO_GEMINI)
+        response = model.generate_content([
+            f"Instrucciones: Indica si la siguiente línea de texto de una hoja de vida es relevante para el indicador '{indicator_description}'. Responde 'Sí' o 'No' solamente.\n\nLínea de texto:\n{line}"
+        ])
+        respuesta_texto = response.text.strip().lower()
+        return "sí" in respuesta_texto or "yes" in respuesta_texto # Ser flexible con las respuestas
 
+    except Exception as e:
+        print(f"⚠️ Error al usar Gemini para is_relevant_for_indicator_gemini: {e}")
+        return False
+
+def calculate_indicators_for_report_gemini(lines, position_indicators): # Nueva función con Gemini
     indicator_results = {}
     for indicator, keywords in position_indicators.items():
-        relevant_lines = sum(
-            any(keyword.lower() in line.lower() for keyword in keywords) for line in lines
-        )
-        percentage = (relevant_lines / total_lines) * 100
-        indicator_results[indicator] = {"percentage": percentage, "relevant_lines": relevant_lines}
-
+        relevant_lines_count = 0
+        for line in lines:
+            indicator_description = f"Indicador: {indicator}. Palabras clave asociadas: {', '.join(keywords)}" # Descripción del indicador para Gemini
+            if is_relevant_for_indicator_gemini(line, indicator_description):
+                relevant_lines_count += 1
+        total_lines = len(lines)
+        percentage = (relevant_lines_count / total_lines) * 100 if total_lines > 0 else 0
+        indicator_results[indicator] = {"percentage": percentage, "relevant_lines": relevant_lines_count}
     return indicator_results
-
+    
 # Función para calcular la similitud usando TF-IDF y similitud de coseno
 def clean_text(text):
     """Limpia el texto eliminando caracteres especiales y espacios extra."""
@@ -677,9 +685,9 @@ def generate_report_with_background_api(pdf_path, position, candidate_name,backg
         indicator_results = {}
 
         # Calcular el porcentaje por cada indicador
-        indicator_results = calculate_indicators_for_report(lines, position_indicators)
+        indicator_results = calculate_indicators_for_report_gemini(lines, position_indicators)
         for indicator, keywords in position_indicators.items():
-            indicator_results = calculate_indicators_for_report(lines, position_indicators)
+            indicator_results = calculate_indicators_for_report_gemini(lines, position_indicators)
 
         # Calcular la presencia total (si es necesario)
         total_presence = sum(result["percentage"] for result in indicator_results.values())
