@@ -1,3 +1,4 @@
+import google.generativeai as genai
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import FileResponse, JSONResponse
 from typing import Optional
@@ -163,57 +164,27 @@ def calculate_all_indicators(lines, position_indicators):
         indicator_results[indicator] = (relevant_lines / total_lines) * 100  # Cálculo del porcentaje
     return indicator_results
 
-def is_relevant_for_indicator_gemini(line, indicator_description):
+def calculate_indicators_for_report(lines, position_indicators):
     """
-    Determina si una línea de texto es semánticamente relevante para un indicador usando Gemini.
+    Calcula los porcentajes de relevancia de indicadores para el reporte.
+    :param lines: Lista de líneas de la sección "EXPERIENCIA EN ANEIAP".
+    :param position_indicators: Diccionario de indicadores y palabras clave del cargo.
+    :return: Diccionario con los porcentajes por indicador y detalles de líneas relevantes.
     """
-    try:
-        model = genai.GenerativeModel(MODELO_GEMINI)
-        response = model.generate_content([
-            f"Instrucciones: Indica si la siguiente línea de texto de una hoja de vida es relevante para el indicador '{indicator_description}'. Responde 'Sí' o 'No' solamente.\n\nLínea de texto:\n{line}"
-        ])
-        respuesta_texto = response.text.strip().lower()
-        return "sí" in respuesta_texto or "yes" in respuesta_texto # Ser flexible con las respuestas
+    total_lines = len(lines)
+    if total_lines == 0:
+        return {indicator: {"percentage": 0, "relevant_lines": 0} for indicator in position_indicators}
 
-    except Exception as e:
-        print(f"⚠️ Error al usar Gemini para is_relevant_for_indicator_gemini: {e}")
-        return False
-
-def calculate_indicators_for_report_gemini(lines, position_indicators): # Nueva función con Gemini
     indicator_results = {}
     for indicator, keywords in position_indicators.items():
-        relevant_lines_count = 0
-        for line in lines:
-            indicator_description = f"Indicador: {indicator}. Palabras clave asociadas: {', '.join(keywords)}" # Descripción del indicador para Gemini
-            if is_relevant_for_indicator_gemini(line, indicator_description):
-                relevant_lines_count += 1
-        total_lines = len(lines)
-        percentage = (relevant_lines_count / total_lines) * 100 if total_lines > 0 else 0
-        indicator_results[indicator] = {"percentage": percentage, "relevant_lines": relevant_lines_count}
+        relevant_lines = sum(
+            any(keyword.lower() in line.lower() for keyword in keywords) for line in lines
+        )
+        percentage = (relevant_lines / total_lines) * 100
+        indicator_results[indicator] = {"percentage": percentage, "relevant_lines": relevant_lines}
+
     return indicator_results
 
-def evaluate_presentation_gemini(resume_text, position): # Añadir 'position' como contexto, opcional pero útil
-    """
-    Evalúa la presentación general de la hoja de vida usando Gemini, con criterios definidos.
-    """
-    try:
-        model = genai.GenerativeModel(MODELO_GEMINI)
-        prompt_consejos = f"""
-            Instrucciones: Eres un experto en recursos humanos evaluando hojas de vida para el cargo de '{position}'.  Evalúa la PRESENTACIÓN de la siguiente hoja de vida usando los siguientes criterios, en una escala de 1 a 5 (1=muy malo, 5=excelente). Proporciona un puntaje para cada criterio y un puntaje general promedio.  Responde en formato JSON:\n\nCriterios de Evaluación:\n1. Claridad y Concisión: ¿Qué tan fácil es entender la hoja de vida? ¿El lenguaje es claro y directo?\n2. Profesionalismo: ¿Proyecta una imagen profesional? ¿El tono es adecuado?\n3. Impacto y Persuasión: ¿Destaca las fortalezas del candidato de forma convincente para el cargo?\n\nHoja de vida:\n{resume_text}\n\nRespuesta en formato JSON, incluyendo 'clarity_score', 'professionalism_score', 'impact_score', y 'overall_presentation_score':
-            """
-        response = model.generate_content([prompt_consejos])
-        respuesta_texto = response.text.strip()
-        try:
-            resultados_presentacion = json.loads(respuesta_texto) # Esperar respuesta JSON
-            return resultados_presentacion
-        except json.JSONDecodeError:
-            print(f"⚠️ Respuesta de Gemini no es JSON válido: '{respuesta_texto}'.")
-            return None
-
-    except Exception as e:
-        print(f"⚠️ Error al usar Gemini para evaluate_presentation_gemini: {e}")
-        return None
-    
 # Función para calcular la similitud usando TF-IDF y similitud de coseno
 def clean_text(text):
     """Limpia el texto eliminando caracteres especiales y espacios extra."""
@@ -707,9 +678,9 @@ def generate_report_with_background_api(pdf_path, position, candidate_name,backg
         indicator_results = {}
 
         # Calcular el porcentaje por cada indicador
-        indicator_results = calculate_indicators_for_report_gemini(lines, position_indicators)
+        indicator_results = calculate_indicators_for_report(lines, position_indicators)
         for indicator, keywords in position_indicators.items():
-            indicator_results = calculate_indicators_for_report_gemini(lines, position_indicators)
+            indicator_results = calculate_indicators_for_report(lines, position_indicators)
 
         # Calcular la presencia total (si es necesario)
         total_presence = sum(result["percentage"] for result in indicator_results.values())
@@ -845,23 +816,190 @@ def generate_report_with_background_api(pdf_path, position, candidate_name,backg
 
     resume_text= evaluate_cv_presentation(pdf_path)
 
-    presentation_scores = evaluate_presentation_gemini(resume_text, position) # Llama a Gemini para evaluar la presentación
+    # Inicializar corrector ortográfico
+    spell = SpellChecker(language='es')
 
-    if not presentation_scores: # Manejar el caso de error en la llamada a Gemini
-        coherence_score = 0 # Puntajes por defecto si falla la API de Gemini
-        spelling_score = 0
-        grammar_score = 0
-        overall_score = 0
-    else:
-        clarity_score = presentation_scores.get("clarity_score", 0)
-        professionalism_score = presentation_scores.get("professionalism_score", 0)
-        impact_score = presentation_scores.get("impact_score", 0)
-        overall_presentation_score = presentation_scores.get("overall_presentation_score", 0)
-        # (Si también quieres calcular puntajes de ortografía/gramática basados en reglas, puedes mantenerlos y combinarlos si lo deseas)
-        coherence_score = 0 # (Ejemplo: Eliminar o poner en 0 las métricas rule-based si solo usas Gemini)
-        spelling_score = 0
-        grammar_score = 0
-        overall_score = overall_presentation_score
+    punctuation_errors = 0
+
+    for i, line in enumerate(lines):
+        # Verificar si la oración termina con puntuación válida
+        if not line.endswith((".", "!", "?")):
+            punctuation_errors += 1
+
+    # Limpiar y dividir el texto en líneas
+    pres_cleaned_lines = [line.strip() for line in resume_text.split("\n") if line.strip()]
+    total_lines = len(pres_cleaned_lines)
+
+    # Métricas
+    total_words = 0
+    spelling_errors = 0
+    missing_capitalization = 0
+    incomplete_sentences = 0
+    punctuation_marks = 0
+    grammar_errors = 0
+
+    for line in pres_cleaned_lines:
+        # Dividir en palabras y contar
+        words = re.findall(r'\b\w+\b', line)
+        total_words += len(words)
+
+        # Ortografía
+        misspelled = spell.unknown(words)
+        spelling_errors += len(misspelled)
+
+        # Verificar capitalización
+        if line and not line[0].isupper():
+            missing_capitalization += 1
+
+        # Verificar que termine en signo de puntuación
+        if not line.endswith((".", "!", "?", ":", ";")):
+            incomplete_sentences += 1
+
+        # Gramática básica: verificar patrones comunes (ejemplo)
+        grammar_errors += len(re.findall(r'\b(?:es|está|son)\b [^\w\s]', line))  # Ejemplo: "es" sin continuación válida
+
+    # Calcular métricas secundarias
+    spelling = 1- (spelling_errors / total_words)
+    capitalization_score = 1- (missing_capitalization / total_lines)
+    sentence_completion_score = 1- (incomplete_sentences / total_lines)
+    grammar = 1- (grammar_errors / total_lines)
+    punctuation_error_rate = 1- (punctuation_errors / total_lines)
+
+    #Calcular métricas principales
+    grammar_score = round(((punctuation_error_rate+ grammar+ sentence_completion_score)/3)*5, 2)
+    spelling_score= round(((spelling+ capitalization_score)/2)*5,2)
+
+    if total_lines == 0:
+        return 100  # Si no hay oraciones, asumimos coherencia perfecta.
+
+    # Calcular métricas coherencia
+    # 1. Repetición de palabras
+    def calculate_word_repetition(pres_cleaned_lines):
+        repeated_words = Counter()
+        for line in pres_cleaned_lines:
+            words = line.split()
+            repeated_words.update([word.lower() for word in words])
+
+        total_words = sum(repeated_words.values())
+        unique_words = len(repeated_words)
+        most_common_word_count = repeated_words.most_common(1)[0][1] if repeated_words else 0
+        repeated_word_ratio = (most_common_word_count / total_words) if total_words > 0 else 0
+
+        # Una menor repetición indica mayor calidad
+        repetition_score = 1 - repeated_word_ratio
+        return repetition_score, repeated_words
+
+    # 2. Fluidez entre oraciones
+    def calculate_sentence_fluency(pres_cleaned_lines):
+        """
+        Calcula el puntaje de fluidez de las oraciones basándose en conectores lógicos, puntuación,
+        y variabilidad en la longitud de las oraciones.
+        :param pres_cleaned_lines: Lista de líneas limpias del texto.
+        :return: Puntaje de fluidez de las oraciones entre 0 y 1.
+        """
+        # Lista de conectores lógicos comunes
+        logical_connectors = {
+        "adición": [
+            "además", "también", "asimismo", "igualmente", "de igual manera",
+            "por otro lado", "de la misma forma", "junto con"
+        ],
+        "causa": [
+            "porque", "ya que", "debido a", "dado que", "por motivo de",
+            "gracias a", "en razón de", "a causa de"
+        ],
+        "consecuencia": [
+            "por lo tanto", "así que", "en consecuencia", "como resultado",
+            "por esta razón", "de modo que", "lo que permitió", "de ahí que"
+        ],
+        "contraste": [
+            "sin embargo", "pero", "aunque", "no obstante", "a pesar de",
+            "por el contrario", "en cambio", "si bien", "mientras que"
+        ],
+        "condición": [
+            "si", "en caso de", "a menos que", "siempre que", "con la condición de",
+            "a no ser que", "en el supuesto de que"
+        ],
+        "tiempo": [
+            "mientras", "cuando", "después de", "antes de", "al mismo tiempo",
+            "posteriormente", "una vez que", "simultáneamente", "en el transcurso de"
+        ],
+        "descripción de funciones": [
+            "encargado de", "responsable de", "mis funciones incluían",
+            "lideré", "gestioné", "coordiné", "dirigí", "supervisé",
+            "desarrollé", "planifiqué", "ejecuté", "implementé", "organicé"
+        ],
+        "logros y resultados": [
+            "logré", "alcancé", "conseguí", "incrementé", "reduje",
+            "optimizé", "mejoré", "aumenté", "potencié", "maximicé",
+            "contribuí a", "obtuve", "permitió mejorar", "impactó positivamente en"
+        ],
+        "secuencia": [
+            "primero", "en primer lugar", "a continuación", "luego", "después",
+            "seguidamente", "posteriormente", "finalmente", "por último"
+        ],
+        "énfasis": [
+            "sobre todo", "en particular", "especialmente", "principalmente",
+            "específicamente", "vale la pena destacar", "conviene resaltar",
+            "cabe mencionar", "es importante señalar"
+        ],
+        "conclusión": [
+            "en resumen", "para concluir", "en definitiva", "en síntesis",
+            "como conclusión", "por ende", "por consiguiente", "para finalizar"
+        ]
+    }
+        connector_count = 0
+        total_lines = len(pres_cleaned_lines)
+
+        # Validación para evitar divisiones por cero
+        if total_lines == 0:
+            return 0  # Sin líneas, no se puede calcular fluidez
+
+        # Inicialización de métricas
+        punctuation_errors = 0
+        sentence_lengths = []
+
+        for line in pres_cleaned_lines:
+            # Verificar errores de puntuación (oraciones sin punto final)
+            if not line.endswith((".", "!", "?")):
+                punctuation_errors += 1
+
+            # Almacenar la longitud de cada oración
+            sentence_lengths.append(len(line.split()))
+
+            # Contar conectores lógicos en la línea
+            for connector in logical_connectors:
+                if connector in line.lower():
+                    connector_count += 1
+
+        # Calcular métricas individuales
+        avg_length = sum(sentence_lengths) / total_lines
+        length_variance = sum(
+            (len(line.split()) - avg_length) ** 2 for line in pres_cleaned_lines
+        ) / total_lines if total_lines > 1 else 0
+
+        # Normalizar métricas entre 0 y 1
+        punctuation_score = max(0, 1 - (punctuation_errors / total_lines))  # 1 si no hay errores
+        connector_score = min(1, connector_count / total_lines)  # Máximo 1, basado en conectores
+        variance_penalty = max(0, 1 - length_variance / avg_length) if avg_length > 0 else 0
+
+        # Calcular puntaje final de fluidez
+        fluency_score = (punctuation_score + connector_score + variance_penalty) / 3
+        return round(fluency_score, 2)
+
+
+    # Calcular métricas individuales
+    repetition_score, repeated_words = calculate_word_repetition(pres_cleaned_lines)
+    fluency_score = calculate_sentence_fluency(pres_cleaned_lines)
+
+    # Asegurar que repetition_score y fluency_score están entre 0 y 1 antes de la conversión
+    normalized_repetition_score = min(1, max(0, repetition_score))
+    normalized_fluency_score = min(1, max(0, fluency_score))
+
+    # Calcular coherencia asegurando que el resultado final no pase de 5
+    coherence_score = round(min(5, (normalized_repetition_score + normalized_fluency_score) * 2.5), 2)
+
+    # Puntaje general ponderado
+    overall_score = round((spelling_score  + coherence_score + grammar_score) / 3, 2)
 
     # Calculo puntajes parciales
     parcial_exp_func_score = round((parcial_exp_func_match * 5) / 100, 2)
@@ -1082,23 +1220,23 @@ def generate_report_with_background_api(pdf_path, position, candidate_name,backg
 
     elements.append(Spacer(1, 0.2 * inch))
 
-   # Añadir resultados al reporte (TABLA DE PRESENTACIÓN)
+    # Añadir resultados al reporte
     elements.append(Paragraph("<b>Evaluación de la Presentación:</b>", styles['CenturyGothicBold']))
     elements.append(Spacer(1, 0.2 * inch))
 
-    # Crear tabla de evaluación de presentación 
+    # Crear tabla de evaluación de presentación
     presentation_table = Table(
         [
-            ["Criterio", "Puntaje (Escala 1-5)"], # Encabezado ajustado para reflejar la escala
-            ["Claridad y Concisión", f"{clarity_score:.2f}"],
-            ["Profesionalismo", f"{professionalism_score:.2f}"],
-            ["Impacto y Persuasión", f"{impact_score:.2f}"],
-            ["Puntaje Total de Presentación", f"{overall_presentation_score:.2f}"]
+            ["Criterio", "Puntaje"],
+            ["Coherencia", f"{coherence_score:.2f}"],
+            ["Ortografía", f"{spelling_score:.2f}"],
+            ["Gramática", f"{grammar_score:.2f}"],
+            ["Puntaje Total", f"{overall_score:.2f}"]
         ],
-        colWidths=[4 * inch, 2 * inch] # Ancho de columnas ajustado para mejor lectura
+        colWidths=[3 * inch, 2 * inch]
     )
 
-    # Estilo de la tabla (SE MANTIENE EL ESTILO EXISTENTE)
+    # Estilo de la tabla
     presentation_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F0F0F0")),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
@@ -1117,58 +1255,6 @@ def generate_report_with_background_api(pdf_path, position, candidate_name,backg
 
     elements.append(Paragraph("<b>Consejos para mejorar la presentación de la hoja de vida:</b>", styles['CenturyGothicBold']))
     elements.append(Spacer(1, 0.2 * inch))
-
-    # Consejos para coherencia de frases
-    if coherence_score < 3:
-        elements.append(Paragraph(
-            "• Mejora la redacción de las frases en tu hoja de vida. Asegúrate de que sean completas, coherentes y claras.",
-            styles['CenturyGothic']
-        ))
-    elif 3 <= coherence_score <= 4:
-        elements.append(Paragraph(
-            "• La redacción de tus frases es adecuada, pero revisa la fluidez entre oraciones para mejorar la coherencia general.",
-            styles['CenturyGothic']
-        ))
-    else:
-        elements.append(Paragraph(
-            "• La redacción de las frases en tu hoja de vida es clara y coherente. Excelente trabajo.",
-            styles['CenturyGothic']
-        ))
-    elements.append(Spacer(1, 0.1 * inch))
-    # Consejos para ortografía
-    if spelling_score < 3:
-        elements.append(Paragraph(
-            "• Revisa cuidadosamente la ortografía de tu hoja de vida. Considera utilizar herramientas automáticas para detectar errores de escritura.",
-            styles['CenturyGothic']
-        ))
-    elif 3 <= spelling_score <= 4:
-        elements.append(Paragraph(
-            "• Tu ortografía es buena, pero aún puede mejorar. Lee tu hoja de vida en voz alta para identificar errores menores.",
-            styles['CenturyGothic']
-        ))
-    else:
-        elements.append(Paragraph(
-            "• Tu ortografía es excelente. Continúa manteniendo este nivel de detalle en tus documentos.",
-            styles['CenturyGothic']
-        ))
-    elements.append(Spacer(1, 0.1 * inch))
-
-    # Consejos para gramática
-    if grammar_score < 3:
-        elements.append(Paragraph(
-            "• Corrige el uso de mayúsculas. Asegúrate de que nombres propios, títulos y principios de frases estén correctamente capitalizados.",
-            styles['CenturyGothic']
-        ))
-    elif 3 <= grammar_score <= 4:
-        elements.append(Paragraph(
-            "• Tu uso de mayúsculas es aceptable, pero puede perfeccionarse. Revisa los encabezados y títulos para asegurarte de que estén bien escritos.",
-            styles['CenturyGothic']
-        ))
-    else:
-        elements.append(Paragraph(
-            "• El uso de mayúsculas en tu hoja de vida es excelente. Continúa aplicando este estándar.",
-            styles['CenturyGothic']
-        ))
 
     elements.append(Spacer(1, 0.2 * inch))
     # Concordancia de items organizada en tabla con ajuste de texto
@@ -1214,6 +1300,7 @@ def generate_report_with_background_api(pdf_path, position, candidate_name,backg
     low_performance_indicators = {k: v for k, v in indicator_results.items() if (relevant_lines/ total_lines) * 100 < 60.0}
     if low_performance_indicators:
         elements.append(Paragraph("<b>Consejos para Mejorar:</b>", styles['CenturyGothicBold']))
+        elements.append(Spacer(1, 0.05 * inch))
         for indicator, result in low_performance_indicators.items():
             percentage = (relevant_lines/ total_lines)*100
             elements.append(Paragraph(f" {indicator}: ({percentage:.2f}%)", styles['CenturyGothicBold']))
@@ -1283,7 +1370,7 @@ def generate_report_with_background_api(pdf_path, position, candidate_name,backg
     elements.append(Paragraph("<b>Puntajes totales:</b>", styles['CenturyGothicBold']))
     elements.append(Spacer(1, 0.2 * inch))
 
-    total_score= (overall_score+ exp_score+ org_score+ att_score+ profile_score)/5
+    total_score= (exp_score+ att_score+ org_score+ round_overall_score+ profile_score)/5
 
     # Crear tabla de evaluación de presentación
     total_table = Table(
@@ -1293,7 +1380,7 @@ def generate_report_with_background_api(pdf_path, position, candidate_name,backg
             ["Asistencia a eventos", f"{att_score:.2f}"],
             ["Eventos organizados", f"{org_score:.2f}"],
             ["Perfil", f"{prof_score:.2f}"],
-            ["Presentación", f"{overall_score:.2f}"],
+            ["Presentación", f"{round_overall_score:.2f}"],
             ["Puntaje Total", f"{total_score:.2f}"]
         ],
         colWidths=[3 * inch, 2 * inch]
@@ -1347,9 +1434,9 @@ def generate_report_with_background_api(pdf_path, position, candidate_name,backg
     else:
         comments.append("Tu perfil necesita mejoras para alinearse mejor con las expectativas del cargo. Trabaja en desarrollar habilidades y competencias clave.")
 
-    if overall_score >= 4:
+    if round_overall_score >= 4:
         comments.append("La presentación de tu hoja de vida es excelente. Refleja profesionalismo y claridad. Continúa aplicando este enfoque para mantener un alto estándar.")
-    elif overall_score >= 3:
+    elif round_overall_score >= 3:
         comments.append("La presentación de tu hoja de vida es buena, pero puede mejorar en aspectos como coherencia, ortografía o formato general. Dedica tiempo a revisar estos detalles.")
     else:
         comments.append("La presentación de tu hoja de vida necesita mejoras significativas. Asegúrate de revisar la ortografía, la gramática y la coherencia para proyectar una imagen más profesional.")
@@ -1384,552 +1471,510 @@ def generate_report_with_background_api(pdf_path, position, candidate_name,backg
         styles['CenturyGothic']
     ))
 
-    def on_later_pages(canvas, doc):
-        add_background(canvas, background_path)
-
     # Construcción del PDF
     doc.build(elements, onFirstPage=on_first_page, onLaterPages=on_later_pages)
 
     # Read the PDF file as bytes
-    with open(report_path, "rb") as pdf_file:
+    with open(output_path, "rb") as pdf_file:
         pdf_bytes = pdf_file.read()
     # Encode PDF bytes to base64 string
     pdf_base64_string = base64.b64encode(pdf_bytes).decode('utf-8')
 
-    return pdf_base64_string, report_path # Return base64 string and report path
+    return pdf_base64_string, output_path # Return base64 string and report path
 
-
-# FUNCIONES PARA SECUNDARY
-def extract_text_with_headers_and_details(pdf_path):
+def calculate_indicators_for_report_gemini(lines, position, indicator_descriptions): # Añadir indicator_descriptions
     """
-    Extrae encabezados (en negrita) y detalles del texto de un archivo PDF.
-    :param pdf_path: Ruta del archivo PDF.
-    :return: Diccionario con encabezados como claves y detalles como valores.
+    Calcula los porcentajes de relevancia de indicadores para el reporte usando Gemini.
+    :param lines: Lista de líneas de la sección relevante del CV.
+    :param position: Cargo al que aspira (para obtener las descripciones de indicadores).
+    :param indicator_descriptions: Diccionario con descripciones de indicadores para el cargo.
+    :return: Diccionario con los porcentajes por indicador y detalles de líneas relevantes.
     """
-    items = {}
-    current_header = None
+    indicator_results = {}
+    for indicator, description_list in indicator_descriptions.items(): # Iterar sobre descriptions
+        if description_list: # Asegurarse de que la lista de descripciones no esté vacía
+            indicator_description = description_list[0] # Tomar la primera descripción como ejemplo (puedes ajustarlo)
+        else:
+            print(f"⚠️ No se encontró descripción para el indicador '{indicator}' en advice.json para el cargo '{position}'.")
+            indicator_description = f"Indicador: {indicator}." # Descripción genérica si no se encuentra
 
-    with fitz.open(pdf_path) as doc:
-        for page in doc:
-            blocks = page.get_text("dict")["blocks"]
-            for block in blocks:
-                if "lines" not in block:
-                    continue
+        relevant_lines_count = 0
+        for line in lines:
+            if is_relevant_for_indicator_gemini(line, indicator_description, indicator=indicator, position=position): # Pasar indicator e position
+                relevant_lines_count += 1
 
-                for line in block["lines"]:
-                    for span in line["spans"]:
-                        text = span["text"].strip()
-                        if not text:
-                            continue
+        total_lines = len(lines)
+        percentage = (relevant_lines_count / total_lines) * 100 if total_lines > 0 else 0
+        indicator_results[indicator] = {"percentage": percentage, "relevant_lines": relevant_lines_count}
+    return indicator_results
 
-                        # Detectar encabezados (negrita)
-                        if "bold" in span["font"].lower() and not text.startswith("-"):
-                            current_header = text
-                            items[current_header] = []
-                        elif current_header:
-                            # Agregar detalles al encabezado actual
-                            items[current_header].append(text)
 
-    return items
-
-def extract_experience_items_with_details(pdf_path):
+def is_relevant_for_indicator_gemini(line, indicator_description, indicator, position): # Añadir indicator y position
     """
-    Extrae encabezados (en negrita) y sus detalles de la sección 'EXPERIENCIA EN ANEIAP'.
+    Determina si una línea de texto es semánticamente relevante para un indicador usando Gemini.
+    :param line: Línea de texto del CV a evaluar.
+    :param indicator_description: Descripción del indicador (desde advice.json).
+    :param indicator: Nombre del indicador (para debugging).
+    :param position: Cargo (para debugging).
     """
-    items = {}
-    current_item = None
-    in_experience_section = False
+    if not line or not indicator_description:
+        return False
 
-    with fitz.open(pdf_path) as doc:
-        for page in doc:
-            blocks = page.get_text("dict")["blocks"]
-            for block in blocks:
-                if "lines" not in block:
-                    continue
-
-                for line in block["lines"]:
-                    for span in line["spans"]:
-                        text = span["text"].strip()
-                        if not text:
-                            continue
-
-                        # Detectar inicio y fin de la sección
-                        if "experiencia en aneiap" in text.lower():
-                            in_experience_section = True
-                            continue
-                        elif any(key in text.lower() for key in ["reconocimientos", "eventos organizados"]):
-                            in_experience_section = False
-                            break
-
-                        if not in_experience_section:
-                            continue
-
-                        # Detectar encabezados (negrita) y detalles
-                        if "bold" in span["font"].lower() and not text.startswith("-"):
-                            current_item = text
-                            items[current_item] = []
-                        elif current_item:
-                            items[current_item].append(text)
-
-    return items
-
-def extract_event_items_with_details(pdf_path):
-    """
-    Extrae encabezados (en negrita) y sus detalles de la sección 'EVENTOS ORGANIZADOS'.
-    """
-    items = {}
-    current_item = None
-    in_eventos_section = False
-
-    with fitz.open(pdf_path) as doc:
-        for page in doc:
-            blocks = page.get_text("dict")["blocks"]
-            for block in blocks:
-                if "lines" not in block:
-                    continue
-
-                for line in block["lines"]:
-                    for span in line["spans"]:
-                        text = span["text"].strip()
-                        if not text:
-                            continue
-
-                        # Detectar inicio y fin de la sección
-                        if "eventos organizados" in text.lower():
-                            in_eventos_section = True
-                            continue
-                        elif any(key in text.lower() for key in ["firma", "experiencia laboral"]):
-                            in_eventos_section = False
-                            break
-
-                        if not in_eventos_section:
-                            continue
-
-                        # Detectar encabezados (negrita) y detalles
-                        if "bold" in span["font"].lower() and not text.startswith("-"):
-                            current_item = text
-                            items[current_item] = []
-                        elif current_item:
-                            items[current_item].append(text)
-
-    return items
-
-def extract_asistencia_items_with_details(pdf_path):
-    """
-    Extrae encabezados (en negrita) y sus detalles de la sección 'Asistencia a eventos ANEIAP',
-    excluyendo ciertos términos no evaluables sin modificar el formato original del texto.
-    """
-    items = {}
-    current_item = None
-    in_asistencia_section = False
-    excluded_terms = {
-        "dirección de residencia:",
-        "tiempo en aneiap:",
-        "medios de comunicación:"}
-
-    with fitz.open(pdf_path) as doc:
-        for page in doc:
-            blocks = page.get_text("dict")["blocks"]
-            for block in blocks:
-                if "lines" not in block:
-                    continue
-
-                for line in block["lines"]:
-                    for span in line["spans"]:
-                        text = span["text"].strip()
-                        text_lower = text.lower()  # Solo para comparación
-
-                        if not text or text_lower in excluded_terms:
-                            continue
-
-                        # Detectar inicio y fin de la sección
-                        if "asistencia a eventos aneiap" in text_lower:
-                            in_asistencia_section = True
-                            continue
-                        elif any(key in text_lower for key in ["actualización profesional", "firma"]):
-                            in_asistencia_section = False
-                            break
-
-                        if not in_asistencia_section:
-                            continue
-
-                        # Detectar encabezados (negrita) y detalles
-                        if "bold" in span["font"].lower() and not text.startswith("-"):
-                            current_item = text  # Se mantiene el formato original
-                            items[current_item] = []
-                        elif current_item:
-                            items[current_item].append(text)  # Se mantiene el formato original
-
-    return items
-
-def extract_profile_section_with_details(pdf_path):
-    """ Extrae la sección 'Perfil' de un archivo PDF """
     try:
-        candidate_profile_text = ""
-        in_profile_section = False
+        model = genai.GenerativeModel(MODELO_GEMINI)
+        prompt = f"""
+            Instrucciones: Eres un evaluador de hojas de vida. Determina si la siguiente línea de texto de una hoja de vida es **relevante** para el siguiente indicador, basándote en su descripción. Responde **'Sí'** o **'No'** solamente.
 
-        with fitz.open(pdf_path) as doc:
-            for page in doc:
-                blocks = page.get_text("dict")["blocks"]
-                for block in blocks:
-                    if "lines" not in block:
-                        continue
+            Cargo del candidato: {position}
+            Indicador a evaluar: {indicator}
+            Descripción del indicador: {indicator_description}
 
-                    for line in block["lines"]:
-                        for span in line["spans"]:
-                            text = span["text"].strip()
-                            if not text:
-                                continue
+            Línea de texto de la hoja de vida:
+            {line}
 
-                            # Detectar inicio y fin de la sección
-                            if "perfil" in text.lower():
-                                in_profile_section = True
-                                continue
-                            elif any(key in text.lower() for key in ["asistencia a eventos aneiap", "actualización profesional"]):
-                                in_profile_section = False
-                                break
-
-                            if in_profile_section:
-                                candidate_profile_text += text + " "
-
-        return candidate_profile_text.strip()
+            ¿Es relevante la línea de texto para el indicador? (Responde 'Sí' o 'No'):
+            """
+        response = model.generate_content([prompt])
+        respuesta_texto = response.text.strip().lower()
+        return "sí" in respuesta_texto or "yes" in respuesta_texto
 
     except Exception as e:
-        print(f"⚠️ Error en extract_profile_section_with_details: {e}")
-        return ""
+        print(f"⚠️ Error al usar Gemini para is_relevant_for_indicator_gemini (Indicador: {indicator}, Cargo: {position}): {e}")
+        return False
 
-def evaluate_cv_presentation_with_headers(pdf_path):
+
+def generate_report_with_background_api(pdf_path, position, candidate_name,background_path, chapter):
     """
-    Evalúa la presentación de la hoja de vida en términos de redacción, ortografía,
-    coherencia básica, y claridad, considerando encabezados y detalles.
-    :param pdf_path: Ruta del archivo PDF.
-    :return: Resultados del análisis de presentación por encabezados y detalles.
-    """
-    # Cargar texto del PDF
-    text = extract_text_with_headers_and_details(pdf_path)  # Asegúrate de tener esta función definida
-
-    if not text:
-        return None, "No se pudo extraer texto del archivo PDF."
-
-    # Instanciar SpellChecker
-    spell = SpellChecker()
-
-    # Función para evaluar ortografía
-    def evaluate_spelling(text):
-        """Evalúa la ortografía del texto y retorna un puntaje entre 0 y 100."""
-        if not text or not isinstance(text, str):
-            return 100  # Si no hay texto, asumimos puntaje perfecto
-
-        words = text.split()
-        if len(words) < 2:
-            return 100  # Evitar dividir por 0 si hay muy pocas palabras
-
-        misspelled = spell.unknown(words)
-        total_words = len(words)
-
-        return round(((total_words - len(misspelled)) / total_words) * 100, 2)
-
-    # Función para evaluar capitalización
-    def evaluate_capitalization(text):
-        sentences = re.split(r'[.!?]\s*', text.strip())  # Dividir en oraciones usando signos de puntuación
-        sentences = [sentence for sentence in sentences if sentence]  # Filtrar oraciones vacías
-        correct_caps = sum(1 for sentence in sentences if sentence and sentence[0].isupper())
-        if not sentences:
-            return 100  # Si no hay oraciones, asumimos puntaje perfecto
-        return (correct_caps / len(sentences)) * 100
-
-    # Función para evaluar coherencia de las frases
-    def evaluate_sentence_coherence(text):
-        try:
-            return max(0, min(100, 100 - textstat.flesch_kincaid_grade(text) * 10))  # Normalizar entre 0 y 100
-        except Exception:
-            return 50  # Puntaje intermedio en caso de error
-
-    # Función para evaluar la calidad del texto
-    spelling_score = evaluate_spelling(text)
-    capitalization_score = evaluate_capitalization(text)
-    coherence_score = evaluate_sentence_coherence(text)
-    overall_score = (spelling_score + capitalization_score + coherence_score) / 3
-    return {
-        "spelling_score": spelling_score,
-        "capitalization_score": capitalization_score,
-        "coherence_score": coherence_score,
-        "overall_score": overall_score,
-    }
-
-    # Evaluación de encabezados y detalles
-    presentation_results = {}
-    for header, details in text.items():
-        header_score = evaluate_text_quality(header)  # Evaluar encabezado
-        details_score = evaluate_text_quality(" ".join(details))  # Evaluar detalles combinados
-
-        # Guardar resultados en un diccionario
-        presentation_results[header] = {
-            "header_score": header_score,
-            "details_score": details_score,
-        }
-
-def analyze_and_generate_descriptive_report_with_background_api(pdf_path, position, candidate_name, advice, indicators, background_path, chapter):
-    """
-    Analiza un CV descriptivo y genera un reporte PDF con un fondo en cada página for API usage, returns base64 encoded PDF.
+    Genera un reporte con un fondo en cada página for API usage, returns base64 encoded PDF.
     :param pdf_path: Ruta del PDF.
     :param position: Cargo al que aspira.
     :param candidate_name: Nombre del candidato.
-    :param advice: Diccionario con consejos.
-    :param indicators: Diccionario con indicadores y palabras clave.
     :param background_path: Ruta de la imagen de fondo.
-    :param chapter: Capitulo del candidato.
+    :param chapter: Capítulo del Candidato
     :return: base64 encoded PDF content and report path
     """
+    experience_text = extract_experience_section_with_ocr(pdf_path)
+    if not experience_text:
+        return None, "No se encontró la sección 'EXPERIENCIA EN ANEIAP' en el PDF."
 
-    # Extraer la sección 'Perfil'
-    candidate_profile_text = extract_profile_section_with_details(pdf_path)
+    org_text = extract_event_section_with_ocr(pdf_path)
+    if not org_text:
+        return None, "No se encontró la sección 'EVENTOS ORGANIZADOS' en el PDF."
+
+    att_text = extract_attendance_section_with_ocr(pdf_path)
+    if not att_text:
+        return None, "No se encontró la sección 'Asistencia a Eventos ANEIAP' en el PDF."
+
+    resume_text= evaluate_cv_presentation(pdf_path)
+    if not resume_text:
+        return None, "No se encontró el texto de la hoja de vida"
+
+    candidate_profile_text= extract_profile_section_with_ocr(pdf_path)
     if not candidate_profile_text:
         return None, "No se encontró la sección 'Perfil' en el PDF."
 
-    # Extraer texto de la sección EXPERIENCIA EN ANEIAP
-    items = extract_experience_items_with_details(pdf_path)
-    if not items:
-        return None, "No se encontraron encabezados y detalles de experiencia para analizar."
+    # Dividir la experiencia en líneas
+    lines = extract_cleaned_lines(experience_text)
+    lines= experience_text.split("\n")
+    lines = [line.strip() for line in lines if line.strip()]  # Eliminar líneas vacías
 
-    # Extraer texto de la sección EVENTOS ORGANIZADOS
-    org_items = extract_event_items_with_details(pdf_path)
-    if not org_items:
-        return None, "No se encontraron encabezados y detalles de eventos para analizar."
+    # Dividir los eventos en líneas
+    org_lines = extract_cleaned_lines(org_text)
+    org_lines= org_text.split("\n")
+    org_lines = [line.strip() for line in org_lines if line.strip()]  # Eliminar líneas vacías
 
-    # Extraer texto de la sección Asistencia a eventos
-    att_items = extract_asistencia_items_with_details(pdf_path)
-    if not att_items:
-        return None, "No se encontraron encabezados y detalles de asistencias para analizar."
+    #Dividir lineas de perfil
+    candidate_profile_lines = extract_cleaned_lines(candidate_profile_text)
+    candidate_profile_lines= candidate_profile_text.split("\n")
+    candidate_profile_lines= [line.strip() for line in candidate_profile_lines if line.strip()]
 
-    # Cargar funciones y perfil del cargo
+    # Dividir la asistencia en líneas
+    att_lines = extract_cleaned_lines(att_text)
+    att_lines= att_text.split("\n")
+    att_lines = [line.strip() for line in att_lines if line.strip()]  # Eliminar líneas vacías
+
+    # Obtener los indicadores y palabras clave para el cargo seleccionado
+    position_indicators = indicators.get(position, {})
+    position_advice = advice.get(position, {}) # Cargar advice para el cargo
+
+    #indicator_results = calculate_all_indicators(lines, position_indicators) #REEMPLAZAR POR VERSION GEMINI
+    indicator_results = calculate_indicators_for_report_gemini(lines, position, position_advice) # Usar función Gemini para indicadores
+
+    # Cargar funciones y perfil
     try:
         with fitz.open(f"Funciones//F{position}.pdf") as func_doc:
             functions_text = func_doc[0].get_text()
-        with fitz.open(f"Perfiles//P{position}.pdf") as profile_doc:
+        with fitz.open(f"Perfiles/P{position}.pdf") as profile_doc:
             profile_text = profile_doc[0].get_text()
     except Exception as e:
         return None, f"Error al cargar funciones o perfil: {e}"
 
-    # Filtrar indicadores correspondientes al cargo seleccionado
-    position_indicators = indicators.get(position, {})
-    if not position_indicators:
-        return None, "No se encontraron indicadores para el cargo seleccionado."
+    line_results = []
+    org_line_results = []
+    att_line_results = []
 
-    # Analizar encabezados y detalles
-    item_results = {}
-    org_item_results = {}
-    att_item_results = {}
-    prof_item_results= {}
-
-    # Calcular la cantidad de ítems relacionados para cada indicador
-    related_items_count = {indicator: 0 for indicator in position_indicators}
-
-    # PERFIL CANDIDATO
-    for item in candidate_profile_text:
-        item= item.split
-
-        # Revisar palabras clave en el encabezado
-        profile_contains_keywords = any(
-            keyword.lower() in candidate_profile_text.lower() for keywords in position_indicators.values() for keyword in keywords
-        )
-        # Determinar concordancia en funciones y perfil
-        if profile_contains_keywords:
-            profile_func_match = 100
-            profile_profile_match = 100
-        else:
-            profile_func_match = calculate_similarity(candidate_profile_text, functions_text)
-            profile_profile_match = calculate_similarity(candidate_profile_text, profile_text)
-
-    #EXPERIENCIA EN ANEIAP
-    for header, details in items.items():
-        header_and_details = f"{header} {' '.join(details)}"  # Combinar encabezado y detalles
-
-        # Revisar palabras clave en el encabezado
-        header_contains_keywords = any(
-            keyword.lower() in header.lower() for keywords in position_indicators.values() for keyword in keywords
-        )
-
-        # Revisar palabras clave en los detalles
-        details_contains_keywords = any(
-            keyword.lower() in detail.lower() for detail in details for keywords in position_indicators.values() for keyword in keywords
-        )
-
-        # Determinar concordancia en funciones y perfil
-        if header_contains_keywords or details_contains_keywords:
-            exp_func_match = 100
-            exp_profile_match = 100
-        else:
-            exp_func_match = calculate_similarity(header_and_details, functions_text)
-            exp_profile_match = calculate_similarity(header_and_details, profile_text)
-
-        # Ignorar ítems con 0% en funciones y perfil
-        if exp_func_match == 0 and exp_profile_match == 0:
+    # Evaluación de renglones de EXPERIENCIA EN ANEIAP
+    # Evaluación de renglones
+    for line in lines:
+        line = line.strip()
+        if not line:  # Ignorar líneas vacías
             continue
 
-        # Evaluar indicadores únicamente para el cargo seleccionado
+        # Dividir la experiencia en líneas
+        lines = extract_cleaned_lines(experience_text)
+        lines = experience_text.split("\n")
+        lines = [line.strip() for line in lines if line.strip()]  # Eliminar líneas vacías
+
+        # Obtener los indicadores y palabras clave para el cargo seleccionado
+        position_indicators = indicators.get(position, {})
+        indicator_results = {}
+
+        # Calcular el porcentaje por cada indicador
+        indicator_results = calculate_indicators_for_report(lines, position_indicators)
         for indicator, keywords in position_indicators.items():
-            # Identificar si el encabezado o detalles contienen palabras clave del indicador
-            if any(keyword.lower() in header_and_details.lower() for keyword in keywords):
-                related_items_count[indicator] += 1
+            indicator_results = calculate_indicators_for_report(lines, position_indicators)
 
-        item_results[header] = {
-            "Funciones del Cargo": exp_func_match,
-            "Perfil del Cargo": exp_profile_match,
-        }
+        # Calcular la presencia total (si es necesario)
+        total_presence = sum(result["percentage"] for result in indicator_results.values())
 
-    # Calcular porcentajes de indicadores
-    total_items = len(items)
-    indicator_percentages = {
-        indicator: (count / total_items) * 100 if total_items > 0 else 0 for indicator, count in related_items_count.items()
-    }
+        # Normalizar los porcentajes si es necesario
+        if total_presence > 0:
+            for indicator in indicator_results:
+                indicator_results[indicator]["percentage"] = (indicator_results[indicator]["percentage"] / total_presence) * 100
 
-    # Consejos para indicadores críticos (<60% de concordancia)
-    critical_advice = {
-        indicator: advice.get(position, {}).get(indicator, ["No hay consejos disponibles para este indicador."])
-        for indicator, percentage in indicator_percentages.items() if percentage < 60
-    }
-
-    #EVENTOS ORGANIZADOS
-    for header, details in org_items.items():
-        header_and_details = f"{header} {' '.join(details)}"  # Combinar encabezado y detalles
-
-        # Revisar palabras clave en el encabezado
-        header_contains_keywords = any(
-            keyword.lower() in header.lower() for keywords in position_indicators.values() for keyword in keywords
-        )
-
-        # Revisar palabras clave en los detalles
-        details_contains_keywords = any(
-            keyword.lower() in detail.lower() for detail in details for keywords in position_indicators.values() for keyword in keywords
-        )
-
-        # Determinar concordancia en funciones y perfil
-        if header_contains_keywords or details_contains_keywords:
-            org_func_match = 100
-            org_profile_match = 100
+        # Evaluación general de concordancia
+        if any(keyword.lower() in line.lower() for kw_set in position_indicators.values() for keyword in kw_set):
+            func_match = 100.0
+            profile_match = 100.0
         else:
-            org_func_match = calculate_similarity(header_and_details, functions_text)
-            org_profile_match = calculate_similarity(header_and_details, profile_text)
+            # Calcular similitud
+            func_match = calculate_similarity(line, functions_text)
+            profile_match = calculate_similarity(line, profile_text)
 
-        # Ignorar ítems con 0% en funciones y perfil
-        if org_func_match == 0 and org_profile_match == 0:
+        # Solo agregar al reporte si no tiene 0% en ambas métricas
+        if func_match > 0 or profile_match > 0:
+            line_results.append((line, func_match, profile_match))
+
+    # Normalización de los resultados de indicadores
+    total_presence = sum(indicator["percentage"] for indicator in indicator_results.values())
+    if total_presence > 0:
+        for indicator in indicator_results:
+            indicator_results[indicator]["percentage"] = (indicator_results[indicator]["percentage"] / total_presence) * 100
+
+    # Evaluación de renglones eventos organizados
+    for line in org_lines:
+        line = line.strip()
+        if not line:  # Ignorar líneas vacías
             continue
 
-        org_item_results[header] = {
-                "Funciones del Cargo": org_func_match,
-                "Perfil del Cargo": org_profile_match,
-            }
+        # Dividir los eventos en líneas
+        org_lines = extract_cleaned_lines(org_text)
+        org_lines= att_text.split("\n")
+        org_lines = [line.strip() for line in org_lines if line.strip]
 
-    #ASISTENCIA A EVENTOS
-    for header, details in att_items.items():
-        header_and_details = f"{header} {' '.join(details)}"  # Combinar encabezado y detalles
-
-        # Revisar palabras clave en el encabezado
-        header_contains_keywords = any(
-            keyword.lower() in header.lower() for keywords in position_indicators.values() for keyword in keywords
-        )
-
-        # Revisar palabras clave en los detalles
-        details_contains_keywords = any(
-            keyword.lower() in detail.lower() for detail in details for keywords in position_indicators.values() for keyword in keywords
-        )
-
-        # Determinar concordancia en funciones y perfil
-        if header_contains_keywords or details_contains_keywords:
-            att_func_match = 100
-            att_profile_match = 100
+        # Evaluación general de concordancia
+        if any(keyword.lower() in line.lower() for kw_set in position_indicators.values() for keyword in kw_set):
+            org_func_match = 100.0
+            org_profile_match = 100.0
         else:
-            att_func_match = calculate_similarity(header_and_details, functions_text)
-            att_profile_match = calculate_similarity(header_and_details, profile_text)
+            # Calcular similitud
+            org_func_match = calculate_similarity(line, functions_text)
+            org_profile_match = calculate_similarity(line, profile_text)
 
-        # Ignorar ítems con 0% en funciones y perfil
-        if att_func_match == 0 and att_profile_match == 0:
+        # Solo agregar al reporte si no tiene 0% en ambas métricas
+        if org_func_match > 0 or org_profile_match > 0:
+            org_line_results.append((line, org_func_match, org_profile_match))
+
+    # Evaluación de renglones asistencia a eventos
+    for line in att_lines:
+        line = line.strip()
+        if not line:  # Ignorar líneas vacías
             continue
 
-        att_item_results[header] = {
-                "Funciones del Cargo": att_func_match,
-                "Perfil del Cargo": att_profile_match,
-            }
+        # Dividir los asistencia en líneas
+        att_lines = extract_cleaned_lines(att_text)
+        att_lines= att_text.split("\n")
+        att_lines = [line.strip() for line in att_lines if line.strip]
 
-    #Calcular concordancia parcial para Experiencia ANEIAP
-    if item_results:
-        parcial_exp_func_match = sum(res["Funciones del Cargo"] for res in item_results.values()) / len(item_results)
-        parcial_exp_profile_match = sum(res["Perfil del Cargo"] for res in item_results.values()) / len(item_results)
+        # Evaluación general de concordancia
+        if any(keyword.lower() in line.lower() for kw_set in position_indicators.values() for keyword in kw_set):
+            att_func_match = 100.0
+            att_profile_match = 100.0
+        else:
+            # Calcular similitud
+            att_func_match = calculate_similarity(line, functions_text)
+            att_profile_match = calculate_similarity(line, profile_text)
+
+        # Solo agregar al reporte si no tiene 0% en ambas métricas
+        if att_func_match > 0 or att_profile_match > 0:
+            att_line_results.append((line, att_func_match, att_profile_match))
+
+    # Calcular porcentajes de concordancia con perfil de candidato
+    keyword_count = 0
+    words = re.findall(r"\b\w+\b", candidate_profile_text)
+    total_words = len(words)
+    for kw_set in position_indicators.values():
+        for keyword in kw_set:
+            keyword_count += candidate_profile_text.count(keyword)
+
+    prop_keyword= keyword_count/total_words
+
+    # Evitar división por cero
+    if prop_keyword<= 0.01:
+        keyword_match_percentage = 0
+    elif 0.01 <prop_keyword <= 0.15:
+        keyword_match_percentage = 25
+    elif 0.15 <prop_keyword <= 0.5:
+        keyword_match_percentage = 50
+    elif 0.5 <prop_keyword <= 0.75:
+        keyword_match_percentage = 75
+    else:
+        keyword_match_percentage = 100
+
+    # Evaluación de concordancia basada en palabras clave
+    if keyword_match_percentage == 100:
+        profile_func_match = 100.0
+        profile_profile_match = 100.0
+    else:
+        # Calcular similitud con funciones y perfil del cargo si la coincidencia es baja
+        prof_func_match = calculate_similarity(candidate_profile_text, functions_text)
+        prof_profile_match = calculate_similarity(candidate_profile_text, profile_text)
+        profile_func_match = keyword_match_percentage + prof_func_match
+        profile_profile_match = keyword_match_percentage + prof_profile_match
+
+    # Calcular porcentajes parciales respecto a la Experiencia ANEIAP
+    if line_results:  # Evitar división por cero si no hay ítems válidos
+        parcial_exp_func_match = sum([res[1] for res in line_results]) / len(line_results)
+        parcial_exp_profile_match = sum([res[2] for res in line_results]) / len(line_results)
     else:
         parcial_exp_func_match = 0
         parcial_exp_profile_match = 0
 
-    #Calcular concordancia parcial para Eventos Organizados
-    if item_results:
-        parcial_org_func_match = sum(res["Funciones del Cargo"] for res in org_item_results.values()) / len(org_item_results)
-        parcial_org_profile_match = sum(res["Perfil del Cargo"] for res in org_item_results.values()) / len(org_item_results)
+    # Calcular porcentajes parciales respecto a los Eventos ANEIAP
+    if org_line_results:  # Evitar división por cero si no hay ítems válidos
+        parcial_org_func_match = sum([res[1] for res in org_line_results]) / len(org_line_results)
+        parcial_org_profile_match = sum([res[2] for res in org_line_results]) / len(org_line_results)
     else:
         parcial_org_func_match = 0
         parcial_org_profile_match = 0
 
-    #Calcular concordancia parcial para Asistencia a eventos
-    if item_results:
-        parcial_att_func_match = sum(res["Funciones del Cargo"] for res in att_item_results.values()) / len(att_item_results)
-        parcial_att_profile_match = sum(res["Perfil del Cargo"] for res in att_item_results.values()) / len(att_item_results)
+    # Calcular porcentajes parciales respecto a la asistencia a eventos
+    if att_line_results:  # Evitar división por cero si no hay ítems válidos
+        parcial_att_func_match = sum([res[1] for res in att_line_results]) / len(att_line_results)
+        parcial_att_profile_match = sum([res[2] for res in att_line_results]) / len(att_line_results)
     else:
         parcial_att_func_match = 0
         parcial_att_profile_match = 0
 
-    # Extraer texto del PDF con encabezados y detalles
-    text_data = extract_text_with_headers_and_details(pdf_path)  # Asegúrate de tener esta función definida
+    resume_text= evaluate_cv_presentation(pdf_path)
 
-    if not text_data:
-        return None, "No se pudo extraer texto del archivo PDF."
+    # Inicializar corrector ortográfico
+    spell = SpellChecker(language='es')
 
-    # 📌 Evaluación de la PRESENTACIÓN usando Gemini (NUEVO - INTEGRACIÓN DE GEMINI)
-    resume_text = "" # Inicializar variable para el texto de la hoja de vida para la evaluación de presentación
-    text_data = extract_text_with_headers_and_details(pdf_path) # Extraer texto con encabezados y detalles
-    if text_data: # Si se extrajo texto con encabezados y detalles (para descriptive version)
-        resume_text = " ".join([" ".join(details) for details in text_data.values()]) # Unir todos los detalles para la evaluación de presentación
-    else: # Si no se pudo extraer con encabezados y detalles (fallback - usar extracción OCR general)
-        resume_text= evaluate_cv_presentation(pdf_path) # Usar texto OCR general como fallback
-        if not resume_text:
-            return None, "No se pudo extraer el texto de la hoja de vida para la evaluación de presentación."
+    punctuation_errors = 0
 
-   presentation_scores = evaluate_presentation_gemini(resume_text, position) # Llama a Gemini para evaluar la presentación
+    for i, line in enumerate(lines):
+        # Verificar si la oración termina con puntuación válida
+        if not line.endswith((".", "!", "?")):
+            punctuation_errors += 1
 
-    if not presentation_scores: # Manejar el caso de error en la llamada a Gemini
-        clarity_score = 0  # Puntajes por defecto si falla la API de Gemini
-        professionalism_score = 0
-        impact_score = 0
-        round_overall_score = 0 # Usar round_overall_score para consistencia en la función
-    else:
-        clarity_score = presentation_scores.get("clarity_score", 0)
-        professionalism_score = presentation_scores.get("professionalism_score", 0)
-        impact_score = presentation_scores.get("impact_score", 0)
-        round_overall_score = presentation_scores.get("overall_presentation_score", 0) # Usar round_overall_score para consistencia
+    # Limpiar y dividir el texto en líneas
+    pres_cleaned_lines = [line.strip() for line in resume_text.split("\n") if line.strip()]
+    total_lines = len(pres_cleaned_lines)
+
+    # Métricas
+    total_words = 0
+    spelling_errors = 0
+    missing_capitalization = 0
+    incomplete_sentences = 0
+    punctuation_marks = 0
+    grammar_errors = 0
+
+    for line in pres_cleaned_lines:
+        # Dividir en palabras y contar
+        words = re.findall(r'\b\w+\b', line)
+        total_words += len(words)
+
+        # Ortografía
+        misspelled = spell.unknown(words)
+        spelling_errors += len(misspelled)
+
+        # Verificar capitalización
+        if line and not line[0].isupper():
+            missing_capitalization += 1
+
+        # Verificar que termine en signo de puntuación
+        if not line.endswith((".", "!", "?", ":", ";")):
+            incomplete_sentences += 1
+
+        # Gramática básica: verificar patrones comunes (ejemplo)
+        grammar_errors += len(re.findall(r'\b(?:es|está|son)\b [^\w\s]', line))  # Ejemplo: "es" sin continuación válida
+
+    # Calcular métricas secundarias
+    spelling = 1- (spelling_errors / total_words)
+    capitalization_score = 1- (missing_capitalization / total_lines)
+    sentence_completion_score = 1- (incomplete_sentences / total_lines)
+    grammar = 1- (grammar_errors / total_lines)
+    punctuation_error_rate = 1- (punctuation_errors / total_lines)
+
+    #Calcular métricas principales
+    grammar_score = round(((punctuation_error_rate+ grammar+ sentence_completion_score)/3)*5, 2)
+    spelling_score= round(((spelling+ capitalization_score)/2)*5,2)
+
+    if total_lines == 0:
+        return 100  # Si no hay oraciones, asumimos coherencia perfecta.
+
+    # Calcular métricas coherencia
+    # 1. Repetición de palabras
+    def calculate_word_repetition(pres_cleaned_lines):
+        repeated_words = Counter()
+        for line in pres_cleaned_lines:
+            words = line.split()
+            repeated_words.update([word.lower() for word in words])
+
+        total_words = sum(repeated_words.values())
+        unique_words = len(repeated_words)
+        most_common_word_count = repeated_words.most_common(1)[0][1] if repeated_words else 0
+        repeated_word_ratio = (most_common_word_count / total_words) if total_words > 0 else 0
+
+        # Una menor repetición indica mayor calidad
+        repetition_score = 1 - repeated_word_ratio
+        return repetition_score, repeated_words
+
+    # 2. Fluidez entre oraciones
+    def calculate_sentence_fluency(pres_cleaned_lines):
+        """
+        Calcula el puntaje de fluidez de las oraciones basándose en conectores lógicos, puntuación,
+        y variabilidad en la longitud de las oraciones.
+        :param pres_cleaned_lines: Lista de líneas limpias del texto.
+        :return: Puntaje de fluidez de las oraciones entre 0 y 1.
+        """
+        # Lista de conectores lógicos comunes
+        logical_connectors = {
+        "adición": [
+            "además", "también", "asimismo", "igualmente", "de igual manera",
+            "por otro lado", "de la misma forma", "junto con"
+        ],
+        "causa": [
+            "porque", "ya que", "debido a", "dado que", "por motivo de",
+            "gracias a", "en razón de", "a causa de"
+        ],
+        "consecuencia": [
+            "por lo tanto", "así que", "en consecuencia", "como resultado",
+            "por esta razón", "de modo que", "lo que permitió", "de ahí que"
+        ],
+        "contraste": [
+            "sin embargo", "pero", "aunque", "no obstante", "a pesar de",
+            "por el contrario", "en cambio", "si bien", "mientras que"
+        ],
+        "condición": [
+            "si", "en caso de", "a menos que", "siempre que", "con la condición de",
+            "a no ser que", "en el supuesto de que"
+        ],
+        "tiempo": [
+            "mientras", "cuando", "después de", "antes de", "al mismo tiempo",
+            "posteriormente", "una vez que", "simultáneamente", "en el transcurso de"
+        ],
+        "descripción de funciones": [
+            "encargado de", "responsable de", "mis funciones incluían",
+            "lideré", "gestioné", "coordiné", "dirigí", "supervisé",
+            "desarrollé", "planifiqué", "ejecuté", "implementé", "organicé"
+        ],
+        "logros y resultados": [
+            "logré", "alcancé", "conseguí", "incrementé", "reduje",
+            "optimizé", "mejoré", "aumenté", "potencié", "maximicé",
+            "contribuí a", "obtuve", "permitió mejorar", "impactó positivamente en"
+        ],
+        "secuencia": [
+            "primero", "en primer lugar", "a continuación", "luego", "después",
+            "seguidamente", "posteriormente", "finalmente", "por último"
+        ],
+        "énfasis": [
+            "sobre todo", "en particular", "especialmente", "principalmente",
+            "específicamente", "vale la pena destacar", "conviene resaltar",
+            "cabe mencionar", "es importante señalar"
+        ],
+        "conclusión": [
+            "en resumen", "para concluir", "en definitiva", "en síntesis",
+            "como conclusión", "por ende", "por consiguiente", "para finalizar"
+        ]
+    }
+        connector_count = 0
+        total_lines = len(pres_cleaned_lines)
+
+        # Validación para evitar divisiones por cero
+        if total_lines == 0:
+            return 0  # Sin líneas, no se puede calcular fluidez
+
+        # Inicialización de métricas
+        punctuation_errors = 0
+        sentence_lengths = []
+
+        for line in pres_cleaned_lines:
+            # Verificar errores de puntuación (oraciones sin punto final)
+            if not line.endswith((".", "!", "?")):
+                punctuation_errors += 1
+
+            # Almacenar la longitud de cada oración
+            sentence_lengths.append(len(line.split()))
+
+            # Contar conectores lógicos en la línea
+            for connector in logical_connectors:
+                if connector in line.lower():
+                    connector_count += 1
+
+        # Calcular métricas individuales
+        avg_length = sum(sentence_lengths) / total_lines
+        length_variance = sum(
+            (len(line.split()) - avg_length) ** 2 for line in pres_cleaned_lines
+        ) / total_lines if total_lines > 1 else 0
+
+        # Normalizar métricas entre 0 y 1
+        punctuation_score = max(0, 1 - (punctuation_errors / total_lines))  # 1 si no hay errores
+        connector_score = min(1, connector_count / total_lines)  # Máximo 1, basado en conectores
+        variance_penalty = max(0, 1 - length_variance / avg_length) if avg_length > 0 else 0
+
+        # Calcular puntaje final de fluidez
+        fluency_score = (punctuation_score + connector_score + variance_penalty) / 3
+        return round(fluency_score, 2)
+
+
+    # Calcular métricas individuales
+    repetition_score, repeated_words = calculate_word_repetition(pres_cleaned_lines)
+    fluency_score = calculate_sentence_fluency(pres_cleaned_lines)
+
+    # Asegurar que repetition_score y fluency_score están entre 0 y 1 antes de la conversión
+    normalized_repetition_score = min(1, max(0, repetition_score))
+    normalized_fluency_score = min(1, max(0, fluency_score))
+
+    # Calcular coherencia asegurando que el resultado final no pase de 5
+    coherence_score = round(min(5, (normalized_repetition_score + normalized_fluency_score) * 2.5), 2)
+
+    # Puntaje general ponderado
+    overall_score = round((spelling_score  + coherence_score + grammar_score) / 3, 2)
 
     # Calculo puntajes parciales
-    exp_func_score = round((parcial_exp_func_match * 5) / 100, 2)
-    exp_profile_score = round((parcial_exp_profile_match * 5) / 100, 2)
-    org_func_score = round((parcial_org_func_match * 5) / 100, 2)
-    org_profile_score = round((parcial_org_profile_match * 5) / 100, 2)
-    att_func_score = round((parcial_att_func_match * 5) / 100, 2)
-    att_profile_score = round((parcial_att_profile_match * 5) / 100, 2)
-    profile_func_score = round((profile_func_match * 5) / 100, 2)
-    profile_profile_score = round((profile_profile_match * 5) / 100, 2)
+    parcial_exp_func_score = round((parcial_exp_func_match * 5) / 100, 2)
+    parcial_exp_profile_score = round((parcial_exp_profile_match * 5) / 100, 2)
+    parcial_org_func_score = round((parcial_org_func_match * 5) / 100, 2)
+    parcial_org_profile_score = round((parcial_org_profile_match * 5) / 100, 2)
+    parcial_att_func_score = round((parcial_att_func_match * 5) / 100, 2)
+    parcial_att_profile_score = round((parcial_att_profile_match * 5) / 100, 2)
+    profile_func_score= round((profile_func_match * 5) / 100, 2)
+    profile_profile_score= round((profile_profile_match * 5) / 100, 2)
 
-    # Calcular concordancia global para funciones y perfil
-    global_func_match = (parcial_exp_func_match + parcial_att_func_match + parcial_org_func_match + profile_func_match) / 4
+    #Calcular resultados globales
+    global_func_match = (parcial_exp_func_match + parcial_att_func_match + parcial_org_func_match+ profile_func_match) / 4
     global_profile_match = (parcial_exp_profile_match + parcial_att_profile_match + parcial_org_profile_match + profile_profile_match) / 4
-
-    # Calcular puntaje global
     func_score = round((global_func_match * 5) / 100, 2)
     profile_score = round((global_profile_match * 5) / 100, 2)
 
-    #Calculo de puntajes totales
-    exp_score= (exp_func_score+ exp_profile_score)/2
-    org_score= (org_func_score+ org_profile_score)/2
-    att_score= (att_func_score+ att_profile_score)/2
+    #Calculo puntajes totales
+    exp_score= (parcial_exp_func_score+ parcial_exp_profile_score)/2
+    org_score= (parcial_org_func_score+ parcial_org_profile_score)/2
+    att_score= (parcial_att_func_score+ parcial_att_profile_score)/2
     prof_score= (profile_func_score+ profile_profile_score)/2
-    round_overall_score = round((sum(scores["details_score"]["overall_score"] for scores in presentation_results.values()) + sum(scores["header_score"]["overall_score"] for scores in presentation_results.values())) / (len(presentation_results)*2)/20, 2) # Adjusted overall score calculation
-    total_score= (exp_score+ att_score+ org_score+ round_overall_score+ profile_score)/5
+    total_score= (overall_score+ exp_score+ org_score+ att_score+ profile_score)/5
 
     # Registrar la fuente personalizada
     pdfmetrics.registerFont(TTFont('CenturyGothic', 'Century_Gothic.ttf'))
@@ -1941,8 +1986,8 @@ def analyze_and_generate_descriptive_report_with_background_api(pdf_path, positi
     styles.add(ParagraphStyle(name="CenturyGothicBold", fontName="CenturyGothicBold", fontSize=12, leading=14, alignment=TA_JUSTIFY))
 
     # Crear el documento PDF
-    output_path = f"Reporte_descriptivo_cargo_{candidate_name}_{position}_{chapter}.pdf"
-    doc = SimpleDocTemplate(output_path, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=100, bottomMargin=72)
+    report_path = f"Reporte_analisis_cargo_{candidate_name}_{position}_{chapter}.pdf"
+    doc = SimpleDocTemplate(report_path, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=100, bottomMargin=72)
 
     # Lista de elementos para el reporte
     elements = []
@@ -1952,23 +1997,18 @@ def analyze_and_generate_descriptive_report_with_background_api(pdf_path, positi
         """Dibuja una portada que ocupa toda la página."""
         draw_full_page_cover(canvas, portada_path, candidate_name, position, chapter)
 
-    def on_later_pages(canvas, doc):
-        add_background(canvas, background_path)
-
     # Título del reporte centrado
-    title_style = ParagraphStyle(name='CenteredTitle', fontName='CenturyGothicBold', fontSize=14, leading=16, alignment=1)
+    title_style = ParagraphStyle(name='CenteredTitle', fontName='CenturyGothicBold', fontSize=14, leading=16, alignment=1,  # 1 significa centrado, textColor=colors.black
+                                )
+    # Convertir texto a mayúsculas
     elements.append(PageBreak())
     title_candidate_name = candidate_name.upper()
     title_position = position.upper()
     tittle_chapter= chapter.upper()
-    elements.append(Paragraph(f"REPORTE DE ANÁLISIS DESCRIPTIVO {title_candidate_name} CARGO {title_position} {tittle_chapter}", title_style))
-    elements.append(Spacer(1, 0.2 * inch))
 
-    # --- Rest of report generation code (tables, paragraphs, etc.) --- #
-    # --- (Keep the table and paragraph generation code as it is within this function) --- #
-    # --- Make sure to use 'elements.append(...)' for each part of the report --- #
-    # ---  Adapt the table data from your analysis results (item_results, indicator_percentages, etc.) --- #
-    # --- Ensure that the elements list is properly constructed for the descriptive report --- #
+    elements.append(Paragraph(f"REPORTE DE ANÁLISIS {title_candidate_name} CARGO {title_position} {tittle_chapter}", title_style))
+
+    elements.append(Spacer(1, 0.2 * inch))
 
     # Concordancia de items organizada en tabla con ajuste de texto
     elements.append(Paragraph("<b>Análisis de perfil de aspirante:</b>", styles['CenturyGothicBold']))
@@ -2003,275 +2043,172 @@ def analyze_and_generate_descriptive_report_with_background_api(pdf_path, positi
 
     elements.append(Spacer(1, 0.2 * inch))
 
-    # Encabezados de la tabla
-    org_table_data = [["Ítem", "Funciones del Cargo (%)", "Perfil del Cargo (%)"]]  # Encabezados
-
-    # Iterar sobre los resultados por ítem y construir las filas de la tabla
-    for header, result in org_item_results.items():
-        org_func_match = result.get("Funciones del Cargo", 0)
-        org_profile_match = result.get("Perfil del Cargo", 0)
-
-        # Ajustar texto del encabezado para que no desborde
-        header_paragraph = Paragraph(header, styles['CenturyGothic'])
-
-        # Agregar una fila a la tabla
-        org_table_data.append([
-            header_paragraph,         # Ítem
-            f"{org_func_match:.2f}%",    # Funciones del Cargo
-            f"{org_profile_match:.2f}%"  # Perfil del Cargo
-        ])
-
-    #Agregar resultados parciales
-    org_table_data.append([Paragraph("<b>Concordancia Parcial</b>", styles['CenturyGothicBold']), f"{parcial_org_func_match:.2f}%", f"{parcial_org_profile_match:.2f}%"])
-    org_table_data.append([Paragraph("<b>Puntaje Parcial</b>", styles['CenturyGothicBold']), f"{org_func_score:.2f}", f"{org_profile_score:.2f}"])
-
-    # Crear la tabla
-    org_table = Table(org_table_data, colWidths=[3 * inch, 2 * inch, 2 * inch])
-
-    # Aplicar estilos a la tabla
-    org_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F0F0F0")),  # Fondo de encabezados
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),                 # Color de texto de encabezados
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),                        # Alinear texto al centro
-        ('FONTNAME', (0, 0), (-1, 0), 'CenturyGothicBold'),           # Fuente para encabezados
-        ('FONTNAME', (0, 1), (-1, -1), 'CenturyGothic'),              # Fuente para celdas
-        ('FONTSIZE', (0, 0), (-1, -1), 10),                           # Tamaño de fuente
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),                        # Padding inferior de encabezados
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),                 # Líneas de la tabla
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),                       # Alinear texto verticalmente
-        ('WORDWRAP', (0, 0), (-1, -1))                                # Ajustar texto dentro de celdas
-    ]))
-
-    # Agregar la tabla al reporte
-    elements.append(Paragraph("<b>Análisis de eventos organizados:</b>", styles['CenturyGothicBold']))
-    elements.append(Spacer(1, 0.2 * inch))
-    elements.append(org_table)
-    elements.append(Spacer(1, 0.2 * inch))
-
-    # Total de líneas analizadas
-    org_total_items = len(org_item_results)
-    elements.append(Paragraph(f"• Total de eventos analizados: {org_total_items}", styles['CenturyGothicBold']))
-
+    # Concordancia de items organizada en tabla con ajuste de texto
+    elements.append(Paragraph("<b>Análisis de ítems de asistencia a eventos:</b>", styles['CenturyGothicBold']))
     elements.append(Spacer(1, 0.2 * inch))
 
     # Encabezados de la tabla
-    att_table_data = [["Ítem", "Funciones del Cargo (%)", "Perfil del Cargo (%)"]]  # Encabezados
+    att_table_data = [["Ítem", "Funciones del Cargo (%)", "Perfil del Cargo (%)"]]
 
-    # Iterar sobre los resultados por ítem y construir las filas de la tabla
-    for header, result in att_item_results.items():
-        att_func_match = result.get("Funciones del Cargo", 0)
-        att_profile_match = result.get("Perfil del Cargo", 0)
-
-        # Ajustar texto del encabezado para que no desborde
-        header_paragraph = Paragraph(header, styles['CenturyGothic'])
-
-        # Agregar una fila a la tabla
-        att_table_data.append([
-            header_paragraph,         # Ítem
-            f"{att_func_match:.2f}%",    # Funciones del Cargo
-            f"{att_profile_match:.2f}%"  # Perfil del Cargo
-        ])
+    # Agregar datos de line_results a la tabla
+    for line, att_func_match, att_profile_match in att_line_results:
+        att_table_data.append([Paragraph(line, styles['CenturyGothic']), f"{att_func_match:.2f}%", f"{att_profile_match:.2f}%"])
 
     #Agregar resultados parciales
     att_table_data.append([Paragraph("<b>Concordancia Parcial</b>", styles['CenturyGothicBold']), f"{parcial_att_func_match:.2f}%", f"{parcial_att_profile_match:.2f}%"])
-    att_table_data.append([Paragraph("<b>Puntaje Parcial</b>", styles['CenturyGothicBold']), f"{att_func_score:.2f}", f"{att_profile_score:.2f}"])
+    att_table_data.append([Paragraph("<b>Puntaje Parcial</b>", styles['CenturyGothicBold']), f"{parcial_att_func_score:.2f}", f"{parcial_att_profile_score:.2f}"])
 
-    # Crear la tabla
-    att_table = Table(att_table_data, colWidths=[3 * inch, 2 * inch, 2 * inch])
+    # Crear la tabla con ancho de columnas ajustado
+    att_item_table = Table(att_table_data, colWidths=[3 * inch, 2 * inch, 2 * inch])
 
-    # Aplicar estilos a la tabla
-    att_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F0F0F0")),  # Fondo de encabezados
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),                 # Color de texto de encabezados
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),                        # Alinear texto al centro
-        ('FONTNAME', (0, 0), (-1, 0), 'CenturyGothicBold'),           # Fuente para encabezados
-        ('FONTNAME', (0, 1), (-1, -1), 'CenturyGothic'),              # Fuente para celdas
-        ('FONTSIZE', (0, 0), (-1, -1), 10),                           # Tamaño de fuente
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),                        # Padding inferior de encabezados
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),                 # Líneas de la tabla
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),                       # Alinear texto verticalmente
-        ('WORDWRAP', (0, 0), (-1, -1))                                # Ajustar texto dentro de celdas
+    # Estilos de la tabla con ajuste de texto
+    att_item_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F0F0F0")),  # Fondo para encabezados
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Color de texto en encabezados
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),  # Alinear texto al centro
+        ('FONTNAME', (0, 0), (-1, 0), 'CenturyGothicBold'),  # Fuente para encabezados
+        ('FONTNAME', (0, 1), (-1, -1), 'CenturyGothic'),  # Fuente para el resto de la tabla
+        ('FONTSIZE', (0, 0), (-1, -1), 10),  # Tamaño de fuente
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),  # Padding inferior para encabezados
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),  # Líneas de la tabla
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),  # Alinear texto verticalmente al centro
+        ('WORDWRAP', (0, 0), (-1, -1)),  # Habilitar ajuste de texto
     ]))
 
-    # Agregar la tabla al reporte
-    elements.append(Paragraph("<b>Análisis de eventos asistidos:</b>", styles['CenturyGothicBold']))
-    elements.append(Spacer(1, 0.2 * inch))
-    elements.append(att_table)
+    # Agregar tabla a los elementos
+    elements.append(att_item_table)
+
+    elements.append(Spacer(1, 0.1 * inch))
+
+    # Total de líneas analizadas en ASISTENCIA A EVENTOS ANEIAP
+    att_total_lines = len(att_line_results)
+    elements.append(Paragraph(f"• Total de asistencias a eventos analizadas: {att_total_lines}", styles['CenturyGothicBold']))
+
     elements.append(Spacer(1, 0.2 * inch))
 
-    # Total de líneas analizadas
-    att_total_items = len(att_item_results)
-    elements.append(Paragraph(f"• Total de asistencias analizadas: {att_total_items}", styles['CenturyGothicBold']))
-
+    # Concordancia de items organizada en tabla con ajuste de texto
+    elements.append(Paragraph("<b>Análisis de ítems de eventos organizados:</b>", styles['CenturyGothicBold']))
     elements.append(Spacer(1, 0.2 * inch))
 
     # Encabezados de la tabla
-    item_table_data = [["Ítem", "Funciones del Cargo (%)", "Perfil del Cargo (%)"]]  # Encabezados
+    org_table_data = [["Ítem", "Funciones del Cargo (%)", "Perfil del Cargo (%)"]]
 
-    # Iterar sobre los resultados por ítem y construir las filas de la tabla
-    for header, result in item_results.items():
-        exp_func_match = result.get("Funciones del Cargo", 0)
-        exp_profile_match = result.get("Perfil del Cargo", 0)
-
-        # Ajustar texto del encabezado para que no desborde
-        header_paragraph = Paragraph(header, styles['CenturyGothic'])
-
-        # Agregar una fila a la tabla
-        item_table_data.append([
-            header_paragraph,         # Ítem
-            f"{exp_func_match:.2f}%",    # Funciones del Cargo
-            f"{exp_profile_match:.2f}%"  # Perfil del Cargo
-        ])
+    # Agregar datos de line_results a la tabla
+    for line, org_func_match, org_profile_match in org_line_results:
+        org_table_data.append([Paragraph(line, styles['CenturyGothic']), f"{org_func_match:.2f}%", f"{org_profile_match:.2f}%"])
 
     #Agregar resultados parciales
-    item_table_data.append([Paragraph("<b>Concordancia Parcial</b>", styles['CenturyGothicBold']), f"{parcial_exp_func_match:.2f}%", f"{parcial_exp_profile_match:.2f}%"])
-    item_table_data.append([Paragraph("<b>Puntaje Parcial</b>", styles['CenturyGothicBold']), f"{exp_func_score:.2f}", f"{exp_profile_score:.2f}"])
+    org_table_data.append([Paragraph("<b>Concordancia Parcial</b>", styles['CenturyGothicBold']), f"{parcial_org_func_match:.2f}%", f"{parcial_org_profile_match:.2f}%"])
+    org_table_data.append([Paragraph("<b>Puntaje Parcial</b>", styles['CenturyGothicBold']), f"{parcial_org_func_score:.2f}", f"{parcial_org_profile_score:.2f}"])
 
-    # Crear la tabla
-    item_table = Table(item_table_data, colWidths=[3 * inch, 2 * inch, 2 * inch])
+    # Crear la tabla con ancho de columnas ajustado
+    org_item_table = Table(org_table_data, colWidths=[3 * inch, 2 * inch, 2 * inch])
 
-    # Aplicar estilos a la tabla
-    item_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F0F0F0")),  # Fondo de encabezados
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),                 # Color de texto de encabezados
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),                        # Alinear texto al centro
-        ('FONTNAME', (0, 0), (-1, 0), 'CenturyGothicBold'),           # Fuente para encabezados
-        ('FONTNAME', (0, 1), (-1, -1), 'CenturyGothic'),              # Fuente para celdas
-        ('FONTSIZE', (0, 0), (-1, -1), 10),                           # Tamaño de fuente
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),                        # Padding inferior de encabezados
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),                 # Líneas de la tabla
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),                       # Alinear texto verticalmente
-        ('WORDWRAP', (0, 0), (-1, -1))                                # Ajustar texto dentro de celdas
+    # Estilos de la tabla con ajuste de texto
+    org_item_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F0F0F0")),  # Fondo para encabezados
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Color de texto en encabezados
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),  # Alinear texto al centro
+        ('FONTNAME', (0, 0), (-1, 0), 'CenturyGothicBold'),  # Fuente para encabezados
+        ('FONTNAME', (0, 1), (-1, -1), 'CenturyGothic'),  # Fuente para el resto de la tabla
+        ('FONTSIZE', (0, 0), (-1, -1), 10),  # Tamaño de fuente
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),  # Padding inferior para encabezados
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),  # Líneas de la tabla
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),  # Alinear texto verticalmente al centro
+        ('WORDWRAP', (0, 0), (-1, -1)),  # Habilitar ajuste de texto
     ]))
 
-    # Agregar la tabla al reporte
-    elements.append(Paragraph("<b>Análisis de Ítems:</b>", styles['CenturyGothicBold']))
+    # Agregar tabla a los elementos
+    elements.append(org_item_table)
+
+    elements.append(Spacer(1, 0.1 * inch))
+
+    # Total de líneas analizadas en ASISTENCIA A EVENTOS ANEIAP
+    org_total_lines = len(org_line_results)
+    elements.append(Paragraph(f"• Total de eventos analizados: {org_total_lines}", styles['CenturyGothicBold']))
+
     elements.append(Spacer(1, 0.2 * inch))
+
+    # Concordancia de items organizada en tabla con ajuste de texto
+    elements.append(Paragraph("<b>Análisis de ítems:</b>", styles['CenturyGothicBold']))
+    elements.append(Spacer(1, 0.2 * inch))
+
+    # Encabezados de la tabla
+    table_data = [["Ítem", "Funciones del Cargo (%)", "Perfil del Cargo (%)"]]
+
+    # Agregar datos de line_results a la tabla
+    for line, exp_func_match, exp_profile_match in line_results:
+        table_data.append([Paragraph(line, styles['CenturyGothic']), f"{exp_func_match:.2f}%", f"{exp_profile_match:.2f}%"])
+
+    #Agregar resultados parciales
+    table_data.append([Paragraph("<b>Concordancia Parcial</b>", styles['CenturyGothicBold']), f"{parcial_exp_func_match:.2f}%", f"{parcial_exp_profile_match:.2f}%"])
+    table_data.append([Paragraph("<b>Puntaje Parcial</b>", styles['CenturyGothicBold']), f"{parcial_exp_func_score:.2f}", f"{parcial_exp_profile_score:.2f}"])
+
+    # Crear la tabla con ancho de columnas ajustado
+    item_table = Table(table_data, colWidths=[3 * inch, 2 * inch, 2 * inch])
+
+    # Estilos de la tabla con ajuste de texto
+    item_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F0F0F0")),  # Fondo para encabezados
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Color de texto en encabezados
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),  # Alinear texto al centro
+        ('FONTNAME', (0, 0), (-1, 0), 'CenturyGothicBold'),  # Fuente para encabezados
+        ('FONTNAME', (0, 1), (-1, -1), 'CenturyGothic'),  # Fuente para el resto de la tabla
+        ('FONTSIZE', (0, 0), (-1, -1), 10),  # Tamaño de fuente
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),  # Padding inferior para encabezados
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),  # Líneas de la tabla
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),  # Alinear texto verticalmente al centro
+        ('WORDWRAP', (0, 0), (-1, -1)),  # Habilitar ajuste de texto
+    ]))
+
+    # Agregar tabla a los elementos
     elements.append(item_table)
-    elements.append(Spacer(1, 0.2 * inch))
-
-    # Total de líneas analizadas
-    total_items = len(item_results)
-    elements.append(Paragraph(f"• Total de experiencias analizadas: {total_items}", styles['CenturyGothicBold']))
 
     elements.append(Spacer(1, 0.2 * inch))
 
-    # Crear tabla con la estructura deseada
-    presentation_table_data = [["Criterio", "Puntaje"]]
+    # Total de líneas analizadas en EXPERIENCIA EN ANEIAP
+    total_lines = len(line_results)
+    elements.append(Paragraph(f"• Total de experiencias analizadas: {total_lines}", styles['CenturyGothicBold']))
 
-    # Inicializar variables para combinar encabezados y detalles
-    total_spelling_score = 0
-    total_capitalization_score = 0
-    total_coherence_score = 0
-    total_overall_score = 0
-    total_sections = 0
+    elements.append(Spacer(1, 0.2 * inch))
 
-    # Combinar puntajes de encabezados y detalles
-    for header, scores in presentation_results.items():
-        header_scores = scores["header_score"]
-        details_scores = scores["details_score"]
+    # Añadir resultados al reporte
+    elements.append(Paragraph("<b>Evaluación de la Presentación:</b>", styles['CenturyGothicBold']))
+    elements.append(Spacer(1, 0.2 * inch))
 
-        total_spelling_score += (header_scores["spelling_score"] + details_scores["spelling_score"])
-        total_capitalization_score += (header_scores["capitalization_score"] + details_scores["capitalization_score"])
-        total_coherence_score += (header_scores["coherence_score"] + details_scores["coherence_score"])
-        total_overall_score += (header_scores["overall_score"] + details_scores["overall_score"])
-        total_sections += 2  # Sumar encabezado y detalle como secciones separadas
-
-    # Calcular promedios generales
-    average_spelling_score = total_spelling_score / total_sections if total_sections > 0 else 0
-    average_capitalization_score = total_capitalization_score / total_sections if total_sections > 0 else 0
-    average_coherence_score = total_coherence_score / total_sections if total_sections > 0 else 0
-    average_overall_score = (average_spelling_score+ average_capitalization_score + average_coherence_score)/3
-
-    # Calcular puntajes ajustados
-    round_spelling_score = round((average_spelling_score / 100) * 5, 2)
-    round_capitalization_score = round((average_capitalization_score / 100) * 5, 2)
-    round_coherence_score = round((average_coherence_score / 100) * 5, 2)
-    round_overall_score = round((average_overall_score / 100) * 5, 2)
-
-    # Agregar los puntajes combinados a la tabla
-    presentation_table_data.append(["Ortografía", f"{round_spelling_score:.2f}"])
-    presentation_table_data.append(["Gramática", f"{round_capitalization_score:.2f}"])
-    presentation_table_data.append(["Coherencia", f"{round_coherence_score:.2f}"])
-    presentation_table_data.append(["Puntaje Total", f"{round_overall_score:.2f}"])
-
-    # Crear la tabla con ancho ajustado para las columnas
-    presentation_table = Table(presentation_table_data, colWidths=[4 * inch, 2 * inch])
+    # Crear tabla de evaluación de presentación
+    presentation_table = Table(
+        [
+            ["Criterio", "Puntaje"],
+            ["Coherencia", f"{coherence_score:.2f}"],
+            ["Ortografía", f"{spelling_score:.2f}"],
+            ["Gramática", f"{grammar_score:.2f}"],
+            ["Puntaje Total", f"{overall_score:.2f}"]
+        ],
+        colWidths=[3 * inch, 2 * inch]
+    )
 
     # Estilo de la tabla
     presentation_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F0F0F0")),  # Fondo para encabezados
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Color de texto en encabezados
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),  # Centrar texto
-        ('FONTNAME', (0, 0), (-1, 0), 'CenturyGothicBold'),  # Fuente en encabezados
-        ('FONTNAME', (0, 1), (-1, -1), 'CenturyGothic'),  # Fuente en datos
-        ('FONTSIZE', (0, 0), (-1, -1), 10),  # Tamaño de fuente
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),  # Espaciado inferior en encabezados
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),  # Líneas de la tabla
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),  # Centrar texto verticalmente
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F0F0F0")),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'CenturyGothicBold'),
+        ('FONTNAME', (0, 1), (-1, -1), 'CenturyGothic'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
     ]))
 
-    # Agregar la tabla a los elementos
     elements.append(presentation_table)
-    elements.append(Spacer(1, 0.2 * inch))
-
-    # Generar consejos basados en puntajes
-    elements.append(Paragraph("<b>Consejos para Mejorar la Presentación:</b>", styles['CenturyGothicBold']))
-    elements.append(Spacer(1, 0.2 * inch))
-
-    # Consejos para coherencia
-    if round_coherence_score < 3:
-        elements.append(Paragraph(
-            "• La coherencia de las frases necesita atención. Asegúrate de conectar las ideas claramente y evitar frases fragmentadas.",
-            styles['CenturyGothic']
-        ))
-    elif 3 <= round_coherence_score <= 4:
-        elements.append(Paragraph(
-            "• La coherencia es aceptable, pero hay margen de mejora. Revisa las transiciones entre ideas para lograr un flujo más natural.",
-            styles['CenturyGothic']
-        ))
-    else:
-        elements.append(Paragraph(
-            "• La coherencia de las frases es excelente. Sigue organizando las ideas de manera clara y lógica.",
-            styles['CenturyGothic']
-        ))
-
-    # Consejos para ortografía
-    if round_spelling_score < 3:
-        elements.append(Paragraph(
-            "• Revisa cuidadosamente la ortografía. Utiliza herramientas como correctores automáticos para identificar y corregir errores.",
-            styles['CenturyGothic']
-        ))
-    elif 3 <= round_spelling_score <= 4:
-        elements.append(Paragraph(
-            "• La ortografía es buena, pero se pueden corregir errores menores. Dedica tiempo a revisar cada palabra detenidamente.",
-            styles['CenturyGothic']
-        ))
-    else:
-        elements.append(Paragraph(
-            "• La ortografía es impecable. Sigue prestando atención a los detalles en tus documentos.",
-            styles['CenturyGothic']
-        ))
-
-    # Consejos para gramática
-    if round_capitalization_score < 3:
-        elements.append(Paragraph(
-            "• El uso de mayúsculas y la gramática necesitan mejoras. Asegúrate de que los nombres propios y los títulos estén correctamente capitalizados.",
-            styles['CenturyGothic']
-        ))
-    elif 3 <= round_capitalization_score <= 4:
-        elements.append(Paragraph(
-            "• El uso de mayúsculas es correcto, pero puede perfeccionarse. Revisa los títulos y encabezados para asegurarte de que sean consistentes.",
-            styles['CenturyGothic']
-        ))
-    else:
-        elements.append(Paragraph(
-            "• El uso de mayúsculas es excelente. Mantén este nivel de precisión en la gramática y los detalles del documento.",
-            styles['CenturyGothic']
-        ))
 
     elements.append(Spacer(1, 0.2 * inch))
 
+    elements.append(Paragraph("<b>Consejos para mejorar la presentación de la hoja de vida:</b>", styles['CenturyGothicBold']))
+    elements.append(Spacer(1, 0.2 * inch))
+
+    elements.append(Spacer(1, 0.2 * inch))
     # Concordancia de items organizada en tabla con ajuste de texto
     elements.append(Paragraph("<b>Resultados de indicadores:</b>", styles['CenturyGothicBold']))
     elements.append(Spacer(1, 0.2 * inch))
@@ -2280,8 +2217,13 @@ def analyze_and_generate_descriptive_report_with_background_api(pdf_path, positi
     table_indicator = [["Indicador", "Concordancia (%)"]]
 
     # Agregar datos de line_results a la tabla
-    for indicator, percentage in indicator_percentages.items():
-        if isinstance(percentage, (int, float)):
+    for indicator, data in indicator_results.items():
+        relevant_lines = sum(
+            any(keyword.lower() in line.lower() for keyword in keywords) for line in lines
+        )
+        total_lines = len(line_results)
+        percentage = (relevant_lines / total_lines) * 100 if total_lines > 0 else 0
+        if isinstance(percentage, (int, float)):  # Validar que sea un número
             table_indicator.append([Paragraph(indicator, styles['CenturyGothic']), f"{percentage:.2f}%"])
 
     # Crear la tabla con ancho de columnas ajustado
@@ -2306,19 +2248,22 @@ def analyze_and_generate_descriptive_report_with_background_api(pdf_path, positi
 
     elements.append(Spacer(1, 0.2 * inch))
 
-    # Mostrar consejos para indicadores con porcentaje menor al 50%
-    elements.append(Paragraph("<b>Consejos para Indicadores Críticos:</b>", styles['CenturyGothicBold']))
-    elements.append(Spacer(1, 0.05 * inch))
-    for indicator, percentage in indicator_percentages.items():
-        if percentage < 60:
-            elements.append(Paragraph(f"  Indicador: {indicator} ({percentage:.2f}%)", styles['CenturyGothicBold']))
-            for tip in critical_advice.get(indicator, ["No hay consejos disponibles para este indicador."]):
-                elements.append(Paragraph(f"    • {tip}", styles['CenturyGothic']))
+    # Consejos para mejorar indicadores con baja presencia
+    low_performance_indicators = {k: v for k, v in indicator_results.items() if (relevant_lines/ total_lines) * 100 < 60.0}
+    if low_performance_indicators:
+        elements.append(Paragraph("<b>Consejos para Mejorar:</b>", styles['CenturyGothicBold']))
+        elements.append(Spacer(1, 0.05 * inch))
+        for indicator, result in low_performance_indicators.items():
+            percentage = (relevant_lines/ total_lines)*100
+            elements.append(Paragraph(f" {indicator}: ({percentage:.2f}%)", styles['CenturyGothicBold']))
+            elements.append(Spacer(1, 0.05 * inch))
+            for tip in advice[position].get(indicator, []):
+                elements.append(Paragraph(f"  • {tip}", styles['CenturyGothic']))
                 elements.append(Spacer(1, 0.1 * inch))
 
     elements.append(Spacer(1, 0.2 * inch))
 
-    # Concordancia de items organizada en tabla global con ajuste de texto
+   # Concordancia de items organizada en tabla global con ajuste de texto
     elements.append(Paragraph("<b>Resultados globales:</b>", styles['CenturyGothicBold']))
 
     elements.append(Spacer(1, 0.2 * inch))
@@ -2365,7 +2310,7 @@ def analyze_and_generate_descriptive_report_with_background_api(pdf_path, positi
             f" Buena Concordancia (> 0.60): El análisis muestra que {candidate_name} tiene una buena correspondencia con las funciones del cargo de {position} y el perfil deseado. Aunque su experiencia en la asociación es relevante, existe margen para mejorar. {candidate_name} muestra potencial para cumplir con el rol crucial en la prevalencia del Capítulo, pero se recomienda que continúe desarrollando sus habilidades y acumulando más experiencia relacionada con el cargo objetivo. Su candidatura debe ser considerada con la recomendación de enriquecimiento adicional.",
             styles['CenturyGothic']
         ))
-    elif 60 < global_profile_match and 60 < global_func_match:
+    elif 60 < global_profile_match or 60 < global_func_match:
         elements.append(Paragraph(
             f" Baja Concordancia (< 0.60): El análisis indica que {candidate_name} tiene una baja concordancia con los requisitos del cargo de {position} y el perfil buscado. Esto sugiere que aunque el aspirante posee algunas experiencias relevantes, su historial actual no cubre adecuadamente las competencias y responsabilidades necesarias para este rol crucial en la prevalencia del Capítulo. Se aconseja a {candidate_name} enfocarse en mejorar su perfil profesional y desarrollar las habilidades necesarias para el cargo. Este enfoque permitirá a {candidate_name} alinear mejor su perfil con los requisitos del puesto en futuras oportunidades.",
             styles['CenturyGothic']
@@ -2490,53 +2435,78 @@ def analyze_and_generate_descriptive_report_with_background_api(pdf_path, positi
     return pdf_base64_string, output_path # Return base64 string and report path
 
 
-# API Endpoints
-@app.post("/analizar-cv-simplificado/")
-async def analizar_cv_simplificado(
-    nombre: str = Form(...),
-    capitulo: str = Form(...),
-    cargo: str = Form(...),
-    cv_file: UploadFile = File(...)
-):
-    try:
-        temp_pdf_path = "temp_cv.pdf" # Define a temporary file path
-        with open(temp_pdf_path, "wb") as buffer:
-            shutil.copyfileobj(cv_file.file, buffer)
+def analyze_and_generate_descriptive_report_with_background_api(pdf_path, position, candidate_name, advice, indicators, background_path, chapter):
+    """
+    Analiza un CV descriptivo y genera un reporte PDF con fondo, usando Gemini para indicadores.
+    """
+    # ... (código existente para extracción de texto, carga de datos, etc. - SE MANTIENE IGUAL) ...
 
-        pdf_base64, report_path = generate_report_with_background_api(
-            temp_pdf_path, cargo, nombre, background_path, capitulo
-        )
-        if pdf_base64:
-            return JSONResponse(content={"report_base64": pdf_base64, "report_name": os.path.basename(report_path)}, status_code=200)
-        else:
-            return JSONResponse(content={"error": "Error al generar el reporte"}, status_code=500)
-    except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
-    finally:
-        if os.path.exists("temp_cv.pdf"): # Clean up the temporary file
-            os.remove("temp_cv.pdf")
+    position_advice = advice.get(position, {}) # Cargar advice para el cargo
 
-@app.post("/analizar-cv-descriptivo/")
-async def analizar_cv_descriptivo(
-    nombre: str = Form(...),
-    capitulo: str = Form(...),
-    cargo: str = Form(...),
-    cv_file: UploadFile = File(...)
-):
-    try:
-        temp_pdf_path = "temp_cv_descriptivo.pdf" # Define a temporary file path for descriptive
-        with open(temp_pdf_path, "wb") as buffer:
-            shutil.copyfileobj(cv_file.file, buffer)
+    # REEMPLAZAR LA LLAMADA A calculate_indicators_for_report (o calculate_all_indicators)
+    # indicator_results = calculate_indicators_for_report(...) # Función anterior (keyword-based)
+    indicator_results = calculate_indicators_for_report_gemini(lines, position, position_advice) # Usar función Gemini para indicadores
 
-        pdf_base64, report_path = analyze_and_generate_descriptive_report_with_background_api(
-            temp_pdf_path, cargo, nombre, advice, indicators, background_path, capitulo
-        )
-        if pdf_base64:
-            return JSONResponse(content={"report_base64": pdf_base64, "report_name": os.path.basename(report_path)}, status_code=200)
-        else:
-            return JSONResponse(content={"error": "Error al generar el reporte descriptivo"}, status_code=500)
-    except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
-    finally:
-        if os.path.exists("temp_cv_descriptivo.pdf"): # Clean up the temporary file
-            os.remove("temp_cv_descriptivo.pdf")
+
+    # ... (resto del código de generación del reporte -  TABLAS, PÁRRAFOS, ESTILOS, ETC. - SE MANTIENE IGUAL) ...
+    # ... (Asegúrate de INTEGRAR la tabla de PRESENTACIÓN basada en Gemini como en la respuesta anterior) ...
+
+    # Evaluación de la PRESENTACIÓN usando Gemini (INTEGRAR CÓDIGO DE RESPUESTA ANTERIOR aquí si aún no lo has hecho)
+    resume_text = "" # Inicializar variable para el texto de la hoja de vida para la evaluación de presentación
+    text_data = extract_text_with_headers_and_details(pdf_path) # Extraer texto con encabezados y detalles
+    if text_data: # Si se extrajo texto con encabezados y detalles (para descriptive version)
+        resume_text = " ".join([" ".join(details) for details in text_data.values()]) # Unir todos los detalles para la evaluación de presentación
+    else: # Si no se pudo extraer con encabezados y detalles (fallback - usar extracción OCR general)
+        resume_text= evaluate_cv_presentation(pdf_path) # Usar texto OCR general como fallback
+        if not resume_text:
+            return None, "No se pudo extraer el texto de la hoja de vida para la evaluación de presentación."
+
+    presentation_scores = evaluate_presentation_gemini(resume_text, position) # Llama a Gemini para evaluar la presentación
+
+    if not presentation_scores: # Manejar el caso de error en la llamada a Gemini
+        clarity_score = 0  # Puntajes por defecto si falla la API de Gemini
+        professionalism_score = 0
+        impact_score = 0
+        round_overall_score = 0 # Usar round_overall_score para consistencia en la función
+    else:
+        clarity_score = presentation_scores.get("clarity_score", 0)
+        professionalism_score = presentation_scores.get("professionalism_score", 0)
+        impact_score = presentation_scores.get("impact_score", 0)
+        round_overall_score = presentation_scores.get("overall_presentation_score", 0) # Usar round_overall_score para consistencia
+
+    # Añadir resultados al reporte (TABLA DE PRESENTACIÓN ADAPTADA - COPIA EL CÓDIGO DE LA RESPUESTA ANTERIOR AQUÍ)
+    elements.append(Paragraph("<b>Evaluación de la Presentación:</b>", styles['CenturyGothicBold']))
+    elements.append(Spacer(1, 0.2 * inch))
+    presentation_table = Table(
+        [
+            ["Criterio", "Puntaje (Escala 1-5)"],
+            ["Claridad y Concisión", f"{clarity_score:.2f}"],
+            ["Profesionalismo", f"{professionalism_score:.2f}"],
+            ["Impacto y Persuasión", f"{impact_score:.2f}"],
+            ["Puntaje Total de Presentación", f"{round_overall_score:.2f}"]
+        ],
+        colWidths=[4 * inch, 2 * inch]
+    )
+    presentation_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F0F0F0")),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'CenturyGothicBold'),
+        ('FONTNAME', (0, 1), (-1, -1), 'CenturyGothic'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    elements.append(presentation_table)
+    elements.append(Spacer(1, 0.2 * inch))
+
+
+    # Construcción del PDF (se mantiene igual)
+    doc.build(elements, onFirstPage=on_first_page, onLaterPages=on_later_pages)
+    # Read the PDF file as bytes and Encode to base64 (se mantiene igual)
+    with open(output_path, "rb") as pdf_file:
+        pdf_bytes = pdf_file.read()
+    pdf_base64_string = base64.b64encode(pdf_bytes).decode('utf-8')
+    return pdf_base64_string, output_path
+```
