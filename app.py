@@ -1863,15 +1863,6 @@ def generate_report_with_background(pdf_path, position, candidate_name,backgroun
     # Construcción del PDF
     doc.build(elements, onFirstPage=on_first_page, onLaterPages=on_later_pages)
     
-    # Descargar el reporte desde Streamlit
-    with open(report_path, "rb") as file:
-      st.success("Reporte PDF generado exitosamente.")
-      st.download_button(
-          label="Descargar Reporte PDF",
-          data=file,
-          file_name= report_path,
-          mime="application/pdf"
-      )
 
 #Funciones para secundary
 def extract_text_with_headers_and_details(pdf_path):
@@ -3157,15 +3148,6 @@ def analyze_and_generate_descriptive_report_with_background(pdf_path, position, 
     # Construcción del PDF
     doc.build(elements, onFirstPage=on_first_page, onLaterPages=on_later_pages)
     
-    # Descargar el reporte desde Streamlit
-    with open(output_path, "rb") as file:
-        st.success("Reporte detallado PDF generado exitosamente.")
-        st.download_button(
-            label="Descargar Reporte PDF",
-            data=file,
-            file_name=output_path,
-            mime="application/pdf",
-        )
 
 #Implementación de API de Gemini
 def calculate_similarity_gemini(text1, text2):
