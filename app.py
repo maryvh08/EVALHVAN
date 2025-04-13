@@ -193,7 +193,7 @@
             <div class="p-6">
               <h3 class="text-xl font-bold text-aneiap-blue mb-2">▶️ Versión Simplificada</h3>
               <p class="text-gray-700 mb-4">Esta versión analiza la hoja de vida de forma mucho más rápida evaluando cada una de las experiencias como listado.</p>
-              <img src="https://i.imgur.com/Nh2ysAK.jpg" alt="Split actual" class="w-full h-48 object-cover rounded-lg mb-4">
+              <img src="https://i.imgur.com/Nh2ysAK.jpg" alt="Split actual.jpg">
               
               <div class="bg-blue-50 p-4 rounded-lg mb-4">
                 <h4 class="font-bold text-aneiap-blue mb-2">Recomendaciones a tener en cuenta ✅</h4>
@@ -214,7 +214,7 @@
             <div class="p-6">
               <h3 class="text-xl font-bold text-aneiap-blue mb-2">⏩ Versión Descriptiva</h3>
               <p class="text-gray-700 mb-4">Esta versión es más cercana al entorno profesional permitiendo analizar la descripción de cada una de las experiencia de la hoja de vida</p>
-              <img src="https://i.imgur.com/5jfmCPA.jpg" alt="Split descriptivo" class="w-full h-48 object-cover rounded-lg mb-4">
+              <img src="https://i.imgur.com/5jfmCPA.jpg" alt="Split descriptivo.jpg">
               
               <div class="bg-blue-50 p-4 rounded-lg mb-4">
                 <h4 class="font-bold text-aneiap-blue mb-2">Recomendaciones a tener en cuenta ✅</h4>
@@ -256,7 +256,7 @@
     <section id="simplified" class="section space-y-8">
       <div class="text-center mb-8">
         <h1 class="text-3xl font-bold text-aneiap-blue mb-2">Evaluador de Hoja de Vida ANEIAP</h1>
-        <img src="https://i.imgur.com/T4Vb5tL.jpg" alt="Analizador Versión Simplificada" class="max-w-full mx-auto my-4 rounded-lg shadow-lg">
+        <img src="https://i.imgur.com/T4Vb5tL.jpg" alt="Analizador Versión Simplificada.jpg" class="max-w-full mx-auto my-4 rounded-lg shadow-lg">
         <h2 class="text-xl font-semibold text-gray-700">Versión Simplificada Hoja de Vida ANEIAP ▶️</h2>
         <p class="text-gray-600 mt-2">Sube tu hoja de vida ANEIAP (en formato PDF) para evaluar tu perfil.</p>
       </div>
@@ -400,7 +400,7 @@
     <section id="descriptive" class="section space-y-8">
       <div class="text-center mb-8">
         <h1 class="text-3xl font-bold text-aneiap-blue mb-2">Evaluador de Hoja de Vida ANEIAP</h1>
-        <img src="https://i.imgur.com/K3cD8LS.jpg" alt="Analizador Versión Descriptiva" class="max-w-full mx-auto my-4 rounded-lg shadow-lg">
+        <img src="https://i.imgur.com/K3cD8LS.jpg" alt="Analizador Versión Descriptiva.jpg" class="max-w-full mx-auto my-4 rounded-lg shadow-lg">
         <h2 class="text-xl font-semibold text-gray-700">Versión Descriptiva Hoja de Vida ANEIAP ⏩</h2>
         <p class="text-gray-600 mt-2">Sube tu hoja de vida ANEIAP (en formato PDF) para evaluar tu perfil.</p>
       </div>
