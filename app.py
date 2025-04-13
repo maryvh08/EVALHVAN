@@ -138,7 +138,7 @@
   <nav class="navbar fixed w-full bg-white bg-opacity-90 shadow-md z-50">
     <div class="container mx-auto px-4 py-2 flex justify-between items-center">
       <div class="flex items-center">
-        <img src="https://aneiap.co/wp-content/uploads/2022/09/ISOLOGO-C-300x147.png" alt="Logo ANEIAP" class="h-12">
+        <img src="ISOLOGO C A COLOR.png">
       </div>
       <div class="space-x-4 hidden md:flex">
         <button onclick="showSection('home')" class="nav-link px-3 py-2 rounded hover:bg-gray-100 text-aneiap-blue font-bold">Inicio</button>
