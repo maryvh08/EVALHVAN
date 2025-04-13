@@ -45,6 +45,15 @@ import tempfile
 
 app = FastAPI()
 
+# Monta la carpeta "static" (donde está tu HTML, CSS, JS)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+def read_root(request: Request):
+    # Sirve el archivo HTML principal
+    with open("static/index.html", "r") as f:  # Asegúrate de que la ruta sea correcta
+        html_content = f.read()
+    return HTMLResponse(content=html_content, status_code=200)
+
 # Cargar las palabras clave y consejos desde los archivos JSON
 def load_indicators(filepath="indicators.json"):
     with open(filepath, "r", encoding="utf-8") as file:
