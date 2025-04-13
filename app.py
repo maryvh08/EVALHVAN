@@ -60,6 +60,54 @@ advice = load_advice()
 background_path = "Fondo reporte.png"
 portada_path= "Portada Analizador.png"
 
+def analyze_simplified_api(candidate_name, position, chapter, report_path):
+    try:
+        # 1. Create a temporary directory (better practice than single file)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pdf_path = os.path.join(temp_dir, "uploaded_cv.pdf")
+
+            # 2. Save the uploaded file to the temporary directory
+            with open(pdf_path, "wb") as buffer:
+                shutil.copyfileobj(resume_file.file, buffer) # More efficient for larger files
+
+            # 3. Generate the report (your existing function)
+            report_path = os.path.join(temp_dir, f"Reporte_analisis_cargo_{candidate_name}_{position}_{chapter}.pdf")
+            generate_report_with_background(pdf_path, position, candidate_name, background_path, chapter, report_path) # Pass report_path
+
+            # 4. Return the generated PDF using FileResponse (no need to open it again)
+            return FileResponse(
+                report_path,
+                media_type="application/pdf",
+                filename=f"Reporte_analisis_cargo_{candidate_name}_{position}_{chapter}.pdf"
+            )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error en el análisis: {e}") # Proper FastAPI error
+
+def analyze_descriptive_api(candidate_name, position, chapter, report_path):
+        try:
+        # 1. Create a temporary directory (better practice than single file)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pdf_path = os.path.join(temp_dir, "uploaded_cv.pdf")
+
+            # 2. Save the uploaded file to the temporary directory
+            with open(pdf_path, "wb") as buffer:
+                shutil.copyfileobj(resume_file.file, buffer) # More efficient for larger files
+
+            # 3. Generate the report (your existing function)
+            report_path = os.path.join(temp_dir, f"Reporte_analisis_cargo_{candidate_name}_{position}_{chapter}.pdf")
+            analyze_and_generate_descriptive_report_with_background((pdf_path, position, candidate_name, background_path, chapter, report_path) # Pass report_path
+
+            # 4. Return the generated PDF using FileResponse (no need to open it again)
+            return FileResponse(
+                report_path,
+                media_type="application/pdf",
+                filename=f"Reporte_descriptivo_cargo_{candidate_name}_{position}_{chapter}.pdf"
+            )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error en el análisis: {e}") # Proper FastAPI error
+
 def preprocess_image(image):
     """
     Preprocesa una imagen antes de aplicar OCR.
