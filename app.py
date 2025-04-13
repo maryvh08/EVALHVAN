@@ -14,7 +14,7 @@
     }
     
     body {
-      font-family: 'Century Gothic', Arial, sans-serif;
+      font-family: 'Century Gothic';
       color: #333;
       background-color: #f9f9f9;
     }
