@@ -8,6 +8,7 @@ from io import BytesIO
 from textstat import textstat
 from reportlab.platypus.flowables import PageBreak
 import requests
+import uvicorn
 import tarfile
 import io
 import re
