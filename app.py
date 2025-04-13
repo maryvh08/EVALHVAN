@@ -3188,3 +3188,7 @@ def calculate_similarity_gemini(text1, text2):
         st.warning(f"⚠️ Error al calcular la similitud con la API de Gemini: {e}")
         return 0
 
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000)) # Usa el puerto proporcionado por Vercel o 5000 como predeterminado
+    uvicorn.run(app, host="0.0.0.0", port=port)
+
