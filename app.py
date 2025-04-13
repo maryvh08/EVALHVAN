@@ -609,7 +609,7 @@
     <div class="container mx-auto px-4">
       <div class="flex flex-col md:flex-row justify-between items-center">
         <div class="mb-6 md:mb-0">
-          <img src="https://aneiap.co/wp-content/uploads/2022/09/ISOLOGO-C-BLANCO.png" alt="Logo ANEIAP" class="h-12">
+          <img src="ISOLOGO C BLANCO.png">
         </div>
         <div class="text-center md:text-right">
           <p class="mb-2">© 2024 Asociación Nacional de Estudiantes de Ingeniería Industrial, Administrativa y de Producción</p>
