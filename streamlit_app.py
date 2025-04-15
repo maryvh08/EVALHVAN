@@ -2698,7 +2698,7 @@ def home_page():
             file_name="Plantilla_HV_Descriptiva.pdf",
             mime="application/pdf",
         )
-  def primary_page():
+def primary_page():
     st.markdown("<h1 class='main-title'>Evaluador Simplificado de Hojas de Vida</h1>", unsafe_allow_html=True)
     st.image(images["version_actual"], use_container_width=True)
     
