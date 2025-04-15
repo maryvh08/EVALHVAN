@@ -1,7 +1,7 @@
 import streamlit as st
 from PIL import Image
 import os
-import fitz
+from PyMuPDF import fitz
 import numpy as np
 import spacy
 import pandas as pd
