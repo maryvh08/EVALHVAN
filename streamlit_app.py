@@ -1,4 +1,3 @@
-pip install streamlit pymupdf numpy spacy pandas textstat reportlab scikit-learn statsmodels pytesseract spellchecker textblob pillow
 import streamlit as st
 from PIL import Image
 import os
