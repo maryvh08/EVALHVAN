@@ -1,5 +1,4 @@
 PyMuPDF
-fitz
 scikit-learn
 fpdf
 streamlit-multipage
