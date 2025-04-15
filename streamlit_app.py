@@ -1202,12 +1202,7 @@ def generate_report_with_background(pdf_path, position, candidate_name, backgrou
     
     # Estilos de la tabla con ajuste de texto
     org_item_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F0F0F0")),
-Copiar
-Continua
-Continuaré con el código para el sistema de evaluación de hojas de vida ANEIAP:
-
-Copy        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F0F0F0")),  # Fondo para encabezados
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F0F0F0")),  # Fondo para encabezados
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Color de texto en encabezados
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),  # Alinear texto al centro
         ('FONTNAME', (0, 0), (-1, 0), 'CenturyGothicBold'),  # Fuente para encabezados
