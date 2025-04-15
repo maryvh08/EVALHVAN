@@ -2,6 +2,7 @@ import streamlit as st
 from PIL import Image
 import os
 from PyMuPDF import fitz
+import requests
 import numpy as np
 import spacy
 import pandas as pd
