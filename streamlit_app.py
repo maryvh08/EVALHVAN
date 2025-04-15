@@ -2241,7 +2241,6 @@ def analyze_and_generate_descriptive_report_with_background(pdf_path, position, 
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F0F0F0")),  # Fondo de encabezados
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),                 # Color de texto de encabezados
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),                        # Alinear texto al centro
-        ('FONTNAME', (0, 0), (-1, 0), 'Cen
         ('FONTNAME', (0, 0), (-1, 0), 'CenturyGothicBold'),           # Fuente para encabezados
         ('FONTNAME', (0, 1), (-1, -1), 'CenturyGothic'),              # Fuente para celdas
         ('FONTSIZE', (0, 0), (-1, -1), 10),                           # Tamaño de fuente
