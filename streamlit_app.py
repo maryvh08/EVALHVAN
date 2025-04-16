@@ -268,7 +268,7 @@ def calculate_similarity(text1, text2):
         print(f"⚠️ Error en calculate_similarity: {e}")
         return 0
 
-def calculate_keyword_match_percentage_gemini(candidate_profile_text, position_indicators, functions_text, profile_text):
+def calculate_keyword_match_percentage(candidate_profile_text, position_indicators, functions_text, profile_text):
     """
     Calculates keyword match percentages (functions and profile) using the Gemini API.
 
@@ -308,30 +308,6 @@ def calculate_keyword_match_percentage_gemini(candidate_profile_text, position_i
     total_keywords = 0
     matched_keywords = 0
 
-    #Validate all
-    if total_function_keywords == 0 or function_keywords == "" or function_keywords is None:
-        print("There's no  keywords for functions, by setting to 0%")
-        function_match_percentage= 0.0
-    else :
-        # if function matches
-        prompt = f"""
-            Analiza el siguiente texto: '{candidate_profile_text}'.
-            Indica si las siguientes palabras clave están presentes en el texto: {function_keywords}.
-            Responde 'Si' o 'No' por cada palabra clave.
-        """
-
-        try:
-            GOOGLE_API_KEY= st.secrets["GEMINI_API_KEY"]
-            genai.configure(api_key=GOOGLE_API_KEY)
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            response = model.generate_content(prompt)
-            function_answer= response.text
-            function_matched_keywords = sum(1 for keyword in function_keywords.split() if keyword.lower() in function_answer.lower())# Split by white space
-            function_match_percentage= round((function_matched_keywords / total_function_keywords) * 100, 2)
-
-        except Exception as e:
-            st.error(f"Error generating function keywords: {e}") #Error message to output
-            function_match_percentage = 0.0
 
     if total_profile_keywords == 0 or profile_keywords == "" or profile_keywords is None: # Check the numbers or it bugs out
         print("There are no  keywords for profile, by setting to 0%")
