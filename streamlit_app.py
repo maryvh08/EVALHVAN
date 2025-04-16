@@ -3193,6 +3193,9 @@ with st.sidebar:
     col1, col2, col3 = st.columns(3)
     with col2:
         st.image(logo_aneiap, use_container_width=True)
+
+    st.write("")
+    st.write("")
     
     # Información sobre los cargos
     with st.expander("Cargos de JDC-IC-CCP", expanded=False):
