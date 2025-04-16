@@ -265,6 +265,92 @@ def calculate_similarity(text1, text2):
         print(f"⚠️ Error en calculate_similarity: {e}")
         return 0
 
+def calculate_keyword_match_percentage_gemini(candidate_profile_text, position_indicators, functions_text, profile_text):
+    """
+    Calculates keyword match percentages (functions and profile) using the Gemini API.
+
+    :param candidate_profile_text: Candidate profile text.
+    :param position_indicators: Position indicators (dict).
+    :param functions_text: The functions of the position (text).
+    :param profile_text: The profile description (text).
+    :return: (function_match_percentage, profile_match_percentage), or (None, None) if invalid input or error.
+    """
+    if not candidate_profile_text or not isinstance(candidate_profile_text, str):
+        print("⚠️ Invalid input: candidate_profile_text missing or invalid")
+        return (None, None)
+
+    if not position_indicators or not isinstance(position_indicators, dict):
+        print("⚠️ Invalid input: position_indicators missing or invalid")
+        return (None, None)
+
+    function_keywords = ""
+    profile_keywords = ""
+
+    for indicator, keywords in position_indicators.items(): #Split indicators for functions vs perfil
+
+        if functions_text and any(indicator.lower() in func.lower() for func in functions_text.split()): #If key-word set is for functions append it
+                function_keywords+= " ".join(keywords)
+        if profile_text and any(indicator.lower() in prof.lower() for prof in profile_text.split()): #If key-word set is for profile append it
+                profile_keywords += " ".join(keywords)
+
+    # make sure we are not dividing by zero and there is a key words and no empty profile / function key words for calculations
+    total_function_keywords= len(function_keywords)
+    total_profile_keywords = len(profile_keywords)
+
+    # Initializar porcentajes a 0.0 por defecto
+    function_match_percentage = 0.0
+    profile_match_percentage = 0.0
+
+    #Validate all
+    if total_function_keywords == 0 or function_keywords == "" or function_keywords is None:
+        print("There's no  keywords for functions, by setting to 0%")
+        function_match_percentage= 0.0
+    else :
+        # if function matches
+        prompt = f"""
+            Analiza el siguiente texto: '{candidate_profile_text}'.
+            Indica si las siguientes palabras clave están presentes en el texto: {function_keywords}.
+            Responde 'Si' o 'No' por cada palabra clave.
+        """
+
+        try:
+            GOOGLE_API_KEY= st.secrets["GEMINI_API_KEY"]
+            genai.configure(api_key=GOOGLE_API_KEY)
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            response = model.generate_content(prompt)
+            function_answer= response.text
+            function_matched_keywords = sum(1 for keyword in function_keywords.split() if keyword.lower() in function_answer.lower())# Split by white space
+            function_match_percentage= round((function_matched_keywords / total_function_keywords) * 100, 2)
+
+        except Exception as e:
+            st.error(f"Error generating function keywords: {e}") #Error message to output
+            function_match_percentage = 0.0
+
+    if total_profile_keywords == 0 or profile_keywords == "" or profile_keywords is None: # Check the numbers or it bugs out
+        print("There are no  keywords for profile, by setting to 0%")
+        profile_match_percentage= 0.0
+    else:
+        # if functions_text match
+        prompt = f"""
+            Analiza el siguiente texto: '{candidate_profile_text}'.
+            Indica si las siguientes palabras clave están presentes en el texto: {profile_keywords}.
+            Responde 'Si' o 'No' por cada palabra clave.
+        """
+        try:
+            GOOGLE_API_KEY= st.secrets["GEMINI_API_KEY"]
+            genai.configure(api_key=GOOGLE_API_KEY)
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            response = model.generate_content(prompt)
+            profile_answer= response.text
+            profile_matched_keywords = sum(1 for keyword in profile_keywords.split() if keyword.lower() in profile_answer.lower())  # Split by white space
+            profile_match_percentage = round((profile_matched_keywords / total_profile_keywords) * 100, 2)
+
+        except Exception as e:
+            st.error(f"Error generating profile keywords: {e}") #Error message to output
+            profile_match_percentage = 0.0
+
+    return function_match_percentage, profile_match_percentage
+
 def draw_full_page_cover(canvas, portada_path, candidate_name, position, chapter):
     """
     Dibuja la portada con una imagen a página completa y el título del reporte completamente centrado.
@@ -811,12 +897,15 @@ def generate_report_with_background(pdf_path, position, candidate_name, backgrou
     if keyword_match_percentage == 100:
         profile_func_match = 100.0
         profile_profile_match = 100.0
+
     else:
         # Calcular similitud con funciones y perfil del cargo si la coincidencia es baja
-        prof_func_match = calculate_similarity(candidate_profile_text, functions_text)
-        prof_profile_match = calculate_similarity(candidate_profile_text, profile_text)
-        profile_func_match = keyword_match_percentage + prof_func_match
-        profile_profile_match = keyword_match_percentage + prof_profile_match
+        profile_func_match, profile_profile_match = calculate_keyword_match_percentage_gemini(candidate_profile_text, position_indicators, functions_text, profile_text)
+
+        if profile_func_match is None or profile_profile_match is None:
+            st.warning("Could not calculate profile similarity. Setting default to 0%. Check API connection.")
+            profile_func_match = 0.0
+            profile_profile_match = 0.0
     
     # Calcular porcentajes parciales respecto a la Experiencia ANEIAP
     if line_results:  # Evitar división por cero si no hay ítems válidos
@@ -1897,8 +1986,13 @@ def analyze_and_generate_descriptive_report_with_background(pdf_path, position, 
         profile_func_match = 100
         profile_profile_match = 100
     else:
-        profile_func_match = calculate_similarity(candidate_profile_text, functions_text)
-        profile_profile_match = calculate_similarity(candidate_profile_text, profile_text)
+        # Calcular similitud con funciones y perfil del cargo si la coincidencia es baja
+        profile_func_match, profile_profile_match = calculate_keyword_match_percentage_gemini(candidate_profile_text, position_indicators, functions_text, profile_text)
+
+        if profile_func_match is None or profile_profile_match is None:
+            st.warning("Could not calculate profile similarity. Setting default to 0%. Check API connection.")
+            profile_func_match = 0.0
+            profile_profile_match = 0.0
 
     #EXPERIENCIA EN ANEIAP
     for header, details in items.items():
