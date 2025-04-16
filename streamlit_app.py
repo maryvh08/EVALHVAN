@@ -2604,7 +2604,7 @@ def home_page():
     # Logo principal
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.image(images["evaluador_logo"], use_container_width=True)
+        st.image(evaluador_logo, use_container_width=True)
     
     st.markdown("<h2 class='subtitle'>¿Qué tan listo estás para asumir un cargo de Junta Directiva Capitular?</h2>", unsafe_allow_html=True)
     st.write("""
