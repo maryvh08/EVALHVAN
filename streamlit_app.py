@@ -2987,10 +2987,7 @@ def home_page():
     st.markdown("<h1 class='main-title'>Evaluador de Hojas de Vida ANEIAP</h1>", unsafe_allow_html=True)
     
     # Logo principal
-    col1, col2= st.columns([1, 1])
-    with col2:
-        st.image(evaluador_logo, use_container_width=True)
-    
+    st.image(evaluador_logo, use_container_width=True)
     st.markdown("<h2 class='subtitle'>¿Qué tan listo estás para asumir un cargo de Junta Directiva Capitular?</h2>", unsafe_allow_html=True)
     st.write("""
     Esta herramienta analiza el contenido de tu hoja de vida ANEIAP, comparándola con las funciones y perfil del cargo 
