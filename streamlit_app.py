@@ -298,8 +298,12 @@ def calculate_keyword_match_percentage_gemini(candidate_profile_text, position_i
     total_profile_keywords = len(profile_keywords)
 
     # Initializar porcentajes a 0.0 por defecto
-    function_match_percentage = 0.0
-    profile_match_percentage = 0.0
+    keyword_match_percentage = 0.0  # Set to 0
+    profile_func_match = 0.0  # Setting the default
+    profile_profile_match = 0.0
+    
+    total_keywords = 0
+    matched_keywords = 0
 
     #Validate all
     if total_function_keywords == 0 or function_keywords == "" or function_keywords is None:
