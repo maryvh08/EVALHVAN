@@ -963,13 +963,17 @@ def generate_report_with_background(pdf_path, position, candidate_name, backgrou
 
     # Inicializar corrector ortográfico
     spell = SpellChecker(language='es')
-
-    punctuation_errors = 0
     
-    for i, line in enumerate(lines):
-        # Verificar si la oración termina con puntuación válida
-        if not line.endswith((".", "!", "?")):
-            punctuation_errors += 1
+    # Inicializar valores
+    spelling = 0
+    capitalization_score = 0
+    sentence_completion_score = 0
+    grammar = 0
+    punctuation_error_rate = 0
+    punctuation_errors = 0
+    normalized_repetition_score = 0
+    normalized_fluency_score = 0
+    total_words = 0
 
     # Limpiar y dividir el texto en líneas
     pres_cleaned_lines = [line.strip() for line in resume_text.split("\n") if line.strip()]
@@ -1004,35 +1008,37 @@ def generate_report_with_background(pdf_path, position, candidate_name, backgrou
         grammar_errors += len(re.findall(r'\b(?:es|está|son)\b [^\w\s]', line))  # Ejemplo: "es" sin continuación válida
 
     # Calcular métricas secundarias
-    spelling = 1 - (spelling_errors / total_words) if total_words > 0 else 1
-    capitalization_score = 1 - (missing_capitalization / total_lines) if total_lines > 0 else 1
-    sentence_completion_score = 1 - (incomplete_sentences / total_lines) if total_lines > 0 else 1
-    grammar = 1 - (grammar_errors / total_lines) if total_lines > 0 else 1
-    punctuation_error_rate = 1 - (punctuation_errors / total_lines) if total_lines > 0 else 1
+    spelling = 1 - (spelling_errors / total_words)
+    capitalization_score = 1 - (missing_capitalization / total_lines)
+    sentence_completion_score = 1 - (incomplete_sentences / total_lines)
+    grammar = 1 - (grammar_errors / total_lines)
+    punctuation_error_rate = 1 - (punctuation_errors / total_lines)
 
-    #Calcular métricas principales
-    grammar_score = round(((punctuation_error_rate + grammar + sentence_completion_score)/3)*5, 2)
-    spelling_score = round(((spelling + capitalization_score)/2)*5, 2)
+    # Calcular métricas principales
+    grammar_score = round(((punctuation_error_rate + grammar + sentence_completion_score) / 3) * 5, 2)
+    spelling_score = round(((spelling + capitalization_score) / 2) * 5, 2)
 
     if total_lines == 0:
-        return 100  # Si no hay oraciones, asumimos coherencia perfecta.
+        normalized_repetition_score = 0.0
+        normalized_fluency_score = 0.0
 
-    # Calcular métricas coherencia
-    # 1. Repetición de palabras
-    def calculate_word_repetition(pres_cleaned_lines):
-        repeated_words = Counter()
-        for line in pres_cleaned_lines:
-            words = line.split()
-            repeated_words.update([word.lower() for word in words])
-    
-        total_words = sum(repeated_words.values())
-        unique_words = len(repeated_words)
-        most_common_word_count = repeated_words.most_common(1)[0][1] if repeated_words else 0
-        repeated_word_ratio = (most_common_word_count / total_words) if total_words > 0 else 0
-    
-        # Una menor repetición indica mayor calidad
-        repetition_score = 1 - repeated_word_ratio
-        return repetition_score, repeated_words
+        return None, "El documento está vacío o no contiene texto procesable."  # Si no hay oraciones, asumimos coherencia perfecta
+
+    else:
+        def calculate_word_repetition(pres_cleaned_lines):
+            repeated_words = Counter()
+            for line in pres_cleaned_lines:
+                words = line.split()
+                repeated_words.update([word.lower() for word in words])
+
+            total_words = sum(repeated_words.values())
+            unique_words = len(repeated_words)
+            most_common_word_count = repeated_words.most_common(1)[0][1] if repeated_words else 0
+            repeated_word_ratio = (most_common_word_count / total_words) if total_words > 0 else 0
+
+            # Una menor repetición indica mayor calidad
+            repetition_score = 1 - repeated_word_ratio
+            return repetition_score, repeated_words
 
     # 2. Fluidez entre oraciones
     def calculate_sentence_fluency(pres_cleaned_lines):
@@ -1044,103 +1050,105 @@ def generate_report_with_background(pdf_path, position, candidate_name, backgrou
         """
         # Lista de conectores lógicos comunes
         logical_connectors = {
-        "adición": [
-            "además", "también", "asimismo", "igualmente", "de igual manera",
-            "por otro lado", "de la misma forma", "junto con"
-        ],
-        "causa": [
-            "porque", "ya que", "debido a", "dado que", "por motivo de",
-            "gracias a", "en razón de", "a causa de"
-        ],
-        "consecuencia": [
-            "por lo tanto", "así que", "en consecuencia", "como resultado",
-            "por esta razón", "de modo que", "lo que permitió", "de ahí que"
-        ],
-        "contraste": [
-            "sin embargo", "pero", "aunque", "no obstante", "a pesar de",
-            "por el contrario", "en cambio", "si bien", "mientras que"
-        ],
-        "condición": [
-            "si", "en caso de", "a menos que", "siempre que", "con la condición de",
-            "a no ser que", "en el supuesto de que"
-        ],
-        "tiempo": [
-            "mientras", "cuando", "después de", "antes de", "al mismo tiempo",
-            "posteriormente", "una vez que", "simultáneamente", "en el transcurso de"
-        ],
-        "descripción de funciones": [
-            "encargado de", "responsable de", "mis funciones incluían",
-            "lideré", "gestioné", "coordiné", "dirigí", "supervisé",
-            "desarrollé", "planifiqué", "ejecuté", "implementé", "organicé"
-        ],
-        "logros y resultados": [
-            "logré", "alcancé", "conseguí", "incrementé", "reduje",
-            "optimizé", "mejoré", "aumenté", "potencié", "maximicé",
-            "contribuí a", "obtuve", "permitió mejorar", "impactó positivamente en"
-        ],
-        "secuencia": [
-            "primero", "en primer lugar", "a continuación", "luego", "después",
-            "seguidamente", "posteriormente", "finalmente", "por último"
-        ],
-        "énfasis": [
-            "sobre todo", "en particular", "especialmente", "principalmente",
-            "específicamente", "vale la pena destacar", "conviene resaltar",
-            "cabe mencionar", "es importante señalar"
-        ],
-        "conclusión": [
-            "en resumen", "para concluir", "en definitiva", "en síntesis",
-            "como conclusión", "por ende", "por consiguiente", "para finalizar"
-        ]
-    }
+            "adición": [
+                "además", "también", "asimismo", "igualmente", "de igual manera",
+                "por otro lado", "de la misma forma", "junto con"
+            ],
+            "causa": [
+                "porque", "ya que", "debido a", "dado que", "por motivo de",
+                "gracias a", "en razón de", "a causa de"
+            ],
+            "consecuencia": [
+                "por lo tanto", "así que", "en consecuencia", "como resultado",
+                "por esta razón", "de modo que", "lo que permitió", "de ahí que"
+            ],
+            "contraste": [
+                "sin embargo", "pero", "aunque", "no obstante", "a pesar de",
+                "por el contrario", "en cambio", "si bien", "mientras que"
+            ],
+            "condición": [
+                "si", "en caso de", "a menos que", "siempre que", "con la condición de",
+                "a no ser que", "en el supuesto de que"
+            ],
+            "tiempo": [
+                "mientras", "cuando", "después de", "antes de", "al mismo tiempo",
+                "posteriormente", "una vez que", "simultáneamente", "en el transcurso de"
+            ],
+            "descripción de funciones": [
+                "encargado de", "responsable de", "mis funciones incluían",
+                "lideré", "gestioné", "coordiné", "dirigí", "supervisé",
+                "desarrollé", "planifiqué", "ejecuté", "implementé", "organicé"
+            ],
+            "logros y resultados": [
+                "logré", "alcancé", "conseguí", "incrementé", "reduje",
+                "optimizé", "mejoré", "aumenté", "potencié", "maximicé",
+                "contribuí a", "obtuve", "permitió mejorar", "impactó positivamente en"
+            ],
+            "secuencia": [
+                "primero", "en primer lugar", "a continuación", "luego", "después",
+                "seguidamente", "posteriormente", "finalmente", "por último"
+            ],
+            "énfasis": [
+                "sobre todo", "en particular", "especialmente", "principalmente",
+                "específicamente", "vale la pena destacar", "conviene resaltar",
+                "cabe mencionar", "es importante señalar"
+            ],
+            "conclusión": [
+                "en resumen", "para concluir", "en definitiva", "en síntesis",
+                "como conclusión", "por ende", "por consiguiente", "para finalizar"
+            ]
+        }
+
+        fluency_score = 0
         connector_count = 0
         total_lines = len(pres_cleaned_lines)
-    
+
         # Validación para evitar divisiones por cero
         if total_lines == 0:
             return 0  # Sin líneas, no se puede calcular fluidez
-    
+
         # Inicialización de métricas
         punctuation_errors = 0
         sentence_lengths = []
-    
+
         for line in pres_cleaned_lines:
             # Verificar errores de puntuación (oraciones sin punto final)
             if not line.endswith((".", "!", "?")):
                 punctuation_errors += 1
-    
+
             # Almacenar la longitud de cada oración
             sentence_lengths.append(len(line.split()))
-    
+
             # Contar conectores lógicos en la línea
-            for connector_type, connectors in logical_connectors.items():
-                for connector in connectors:
-                    if connector in line.lower():
-                        connector_count += 1
-    
+            for connector in logical_connectors:
+                if connector in line.lower():
+                    connector_count += 1
+
         # Calcular métricas individuales
-        avg_length = sum(sentence_lengths) / total_lines if total_lines > 0 else 0
+        avg_length = sum(sentence_lengths) / total_lines
         length_variance = sum(
             (len(line.split()) - avg_length) ** 2 for line in pres_cleaned_lines
-        ) / total_lines if total_lines > 1 and avg_length > 0 else 0
-    
+        ) / total_lines if total_lines > 1 else 0
+
         # Normalizar métricas entre 0 y 1
-        punctuation_score = max(0, 1 - (punctuation_errors / total_lines)) if total_lines > 0 else 0  # 1 si no hay errores
-        connector_score = min(1, connector_count / total_lines) if total_lines > 0 else 0  # Máximo 1, basado en conectores
+        punctuation_score = max(0, 1 - (punctuation_errors / total_lines))  # 1 si no hay errores
+        connector_score = min(1, connector_count / total_lines)  # Máximo 1, basado en conectores
         variance_penalty = max(0, 1 - length_variance / avg_length) if avg_length > 0 else 0
-    
+
         # Calcular puntaje final de fluidez
         fluency_score = (punctuation_score + connector_score + variance_penalty) / 3
         return round(fluency_score, 2)  # Escalar a un rango de 0 a 100 y redondear
 
-        
     # Calcular métricas individuales
+    normalized_repetition_score = 0.0
+    normalized_fluency_score = 0.0
     repetition_score, repeated_words = calculate_word_repetition(pres_cleaned_lines)
     fluency_score = calculate_sentence_fluency(pres_cleaned_lines)
-    
+
     # Asegurar que repetition_score y fluency_score están entre 0 y 1 antes de la conversión
     normalized_repetition_score = min(1, max(0, repetition_score))
     normalized_fluency_score = min(1, max(0, fluency_score))
-    
+
     # Calcular coherencia asegurando que el resultado final no pase de 5
     coherence_score = round(min(5, (normalized_repetition_score + normalized_fluency_score) * 2.5), 2)
 
@@ -2797,9 +2805,10 @@ def home_page():
         st.write("""
         Esta versión analiza hojas de vida en formato simplificado donde:
         
-        - Los ítems se presentan como un listado
-        - Sin descripciones detalladas de experiencias
-        - Ideal para el formato actual de ANEIAP
+        - Es preferible que la HV no haya sido cambiada de formato varias veces, ya que esto puede complicar la lectura y extracción del texto.
+        - La EXPERIENCIA EN ANEIAP debe estar enumerada para facilitar el análisis de la misma.
+        - El análisis puede presentar inconsistencias si la HV no está debidamente separada en subtítulos.
+        - Si la sección de EXPERIENCIA EN ANEIAP está dispuesta como tabla, la herramienta puede fallar.
         """)
         
         if st.button("Ir a Evaluador Simplificado", key="btn_simple"):
@@ -2811,9 +2820,10 @@ def home_page():
         st.write("""
         Esta versión analiza hojas de vida en formato descriptivo donde:
         
-        - Cada experiencia tiene un título en negrita
-        - Incluye una descripción detallada de cada actividad
-        - Más cercana al entorno profesional
+        - Organiza tu HV en formato descriptivo para cada cargo o proyecto.
+        - Utiliza negrita para identificar la experiencia.
+        - Usa guiones para detallar las acciones realizadas en cada ítem.
+        - Evita usar tablas para la sección de experiencia, ya que esto dificulta la extracción de datos.
         """)
         
         if st.button("Ir a Evaluador Descriptivo", key="btn_descriptive"):
