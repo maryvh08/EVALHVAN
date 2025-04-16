@@ -141,12 +141,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Cargar las imágenes
-logo_aneiap= "images/ISOLOGO_C_COLOR.png"
-version_actual= "images/Analizador_Version_Actual.jpg"
-version_descriptiva= "images/Analizador_Version_Descriptiva.jpg"
-evaluador_logo= "images/Evaluador_Logo.jpg"
-portada= "images/Portada_Analizador.png"
-fondo= "images/Fondo_Reporte.png"
+logo_aneiap= "images/ISOLOGO C COLOR.png"
+version_actual= "images/Analizador Version Actual.jpg"
+version_descriptiva= "images/Analizador Version Descriptiva.jpg"
+evaluador_logo= "images/Evaluador Logo.jpg"
+portada= "images/Portada Analizador.png"
+fondo= "images/Fondo Reporte.png"
 
 # Cargar los archivos de JSON
 def load_indicators(filepath="indicators.json"):
