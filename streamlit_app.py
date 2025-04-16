@@ -2631,7 +2631,7 @@ def home_page():
 
     with col1:
         st.markdown("<h3>Versión Simplificada</h3>", unsafe_allow_html=True)
-        st.image(splip_actual, use_container_width=True)
+        st.image(split_actual, use_container_width=True)
         st.write("""
         Esta versión analiza hojas de vida en formato simplificado donde:
         
