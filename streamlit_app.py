@@ -871,7 +871,7 @@ def generate_report_with_background(pdf_path, position, candidate_name, backgrou
         if att_func_match > 0 or att_profile_match > 0:
             att_line_results.append((line, att_func_match, att_profile_match))
 
-     for indicator, keywords in position_indicators.items():
+    for indicator, keywords in position_indicators.items():
         total_keywords += len(keywords)  # Set total keywords
     
         prompt = f"""
