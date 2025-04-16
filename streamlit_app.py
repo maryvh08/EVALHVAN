@@ -2871,7 +2871,7 @@ def analyze_and_generate_descriptive_report_with_background(pdf_path, position, 
             ["Asistencia a eventos", f"{att_score:.2f}"],
             ["Eventos organizados", f"{org_score:.2f}"],
             ["Perfil", f"{prof_score:.2f}"],
-            ["Presentación", f"{overall_score:.2f}"],
+            ["Presentación", f"{round_overall_score:.2f}"],
             ["Puntaje Total", f"{total_score:.2f}"]
         ],
         colWidths=[3 * inch, 2 * inch]
