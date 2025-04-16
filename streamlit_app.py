@@ -141,23 +141,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Cargar las imágenes
-def load_images():
-    try:
-        # Ajusta las rutas según tu estructura de archivos
-        images = {
-            "logo": Image.open("images/ISOLOGO_C_COLOR.png"),
-            "version_actual": Image.open("images/Analizador_Version_Actual.jpg"),
-            "version_descriptiva": Image.open("images/Analizador_Version_Descriptiva.jpg"),
-            "ejemplo_simple": Image.open("images/Ejemplo_HV_Simplificada.jpg"),
-            "ejemplo_descriptivo": Image.open("images/Ejemplo_HV_Descriptiva.jpg"),
-            "evaluador_logo": Image.open("images/Evaluador_Logo.jpg"),
-            "portada": "images/Portada_Analizador.png",
-            "fondo": "images/Fondo_Reporte.png",
-        }
-        return images
-    except Exception as e:
-        st.error(f"Error al cargar imágenes: {e}")
-        return {}
+logo_aneiap= "images/ISOLOGO_C_COLOR.png"
+version_actual= "images/Analizador_Version_Actual.jpg"
+version_descriptiva= "images/Analizador_Version_Descriptiva.jpg"
+evaluador_logo= "images/Evaluador_Logo.jpg"
+portada= "images/Portada_Analizador.png"
+fondo= "images/Fondo_Reporte.png"
 
 # Cargar los archivos de JSON
 def load_indicators(filepath="indicators.json"):
@@ -2847,7 +2836,7 @@ if "page" not in st.session_state:
 # Sidebar con información y opciones
 with st.sidebar:
     # Logo ANEIAP
-    st.image(images["logo"], use_container_width=True)
+    st.image(logo_aneiap, use_container_width=True)
     
     # Información sobre los cargos
     with st.expander("Información de Cargos", expanded=False):
