@@ -2987,7 +2987,7 @@ def home_page():
     st.markdown("<h1 class='main-title'>Evaluador de Hojas de Vida ANEIAP</h1>", unsafe_allow_html=True)
     
     # Logo principal
-    col1, col2= st.columns([1, 2, 1])
+    col1, col2= st.columns([1, 1])
     with col2:
         st.image(evaluador_logo, use_container_width=True)
     
