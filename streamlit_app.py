@@ -3196,7 +3196,7 @@ with st.sidebar:
     st.image(logo_aneiap, use_container_width=True)
     
     # Información sobre los cargos
-    with st.expander("Información de Cargos", expanded=False):
+    with st.expander("Cargos de JDC-IC-CCP", expanded=False):
         st.markdown("""
         **DCA**: Director Capitular Académico
         
