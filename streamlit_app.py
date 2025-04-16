@@ -1,6 +1,7 @@
 import streamlit as st
 from PIL import Image
 import os
+import genai
 import fitz
 import requests
 import numpy as np
