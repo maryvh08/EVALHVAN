@@ -2395,12 +2395,6 @@ def analyze_and_generate_descriptive_report_with_background(pdf_path, position, 
             },
         }
     
-    # Calcular puntajes normalizados al rango 0-5
-    spelling_score = round((presentation_results["spelling_score"] / 100) * 5, 2)
-    capitalization_score = round((presentation_results["capitalization_score"] / 100) * 5, 2)
-    coherence_score = round((presentation_results["coherence_score"] / 100) * 5, 2)
-    overall_score = round((presentation_results["overall_score"] / 100) * 5, 2)
-    
     # Calculo puntajes parciales
     parcial_exp_func_score = round((parcial_exp_func_match * 5) / 100, 2)
     parcial_exp_profile_score = round((parcial_exp_profile_match * 5) / 100, 2)
