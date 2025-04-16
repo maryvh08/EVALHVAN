@@ -118,14 +118,6 @@ st.markdown("""
         border-top: 1px solid #eee;
     }
     
-    /* Selector modo oscuro */
-    .dark-mode-toggle {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 10px;
-        margin-bottom: 1rem;
-    }
     
     /* Disclaimer */
     .disclaimer {
@@ -2852,33 +2844,6 @@ with st.sidebar:
         
         Versión: 1.0.0
         """)
-    
-    # Toggle modo oscuro
-    st.write("---")
-    dark_mode = st.checkbox("Modo Oscuro", value=False)
-    if dark_mode:
-        st.markdown("""
-        <style>
-            .main {
-                background-color: #1E1E1E;
-                color: #FFFFFF;
-            }
-            .main-title, .subtitle {
-                color: #76C04E !important;
-            }
-            .stButton>button {
-                background-color: #76C04E;
-                color: white;
-            }
-            .stButton>button:hover {
-                background-color: #A8CF45;
-            }
-            .card {
-                background-color: #2D2D2D;
-                color: #FFFFFF;
-            }
-        </style>
-        """, unsafe_allow_html=True)
     
     st.write("---")
     st.write("© 2025 ANEIAP. Todos los derechos reservados.")
