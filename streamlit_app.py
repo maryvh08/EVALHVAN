@@ -159,6 +159,11 @@ def load_advice(filepath="advice.json"):
     with open(filepath, "r", encoding="utf-8") as file:
         return json.load(file)
 
+
+# Cargar indicadores y consejos al inicio del script
+indicators = load_indicators()
+advice = load_advice()
+
 # Rutas a los archivos
 background_path = "images/Fondo_reporte.png"
 portada_path = "images/Portada_Analizador.png"
