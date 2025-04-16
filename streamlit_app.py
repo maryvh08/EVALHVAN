@@ -2642,31 +2642,58 @@ def analyze_and_generate_descriptive_report_with_background(pdf_path, position, 
     # Crear tabla con la estructura deseada
     presentation_table_data = [["Criterio", "Puntaje"]]
     
-    # Agregar los puntajes de presentación a la tabla
-    presentation_table_data.append(["Ortografía", f"{spelling_score:.2f}"])
-    presentation_table_data.append(["Gramática", f"{capitalization_score:.2f}"])
-    presentation_table_data.append(["Coherencia", f"{coherence_score:.2f}"])
-    presentation_table_data.append(["Puntaje Total", f"{overall_score:.2f}"])
+    # Inicializar variables para combinar encabezados y detalles
+    total_spelling_score = 0
+    total_capitalization_score = 0
+    total_coherence_score = 0
+    total_overall_score = 0
+    total_sections = 0
+    
+    # Combinar puntajes de encabezados y detalles
+    for header, scores in presentation_results.items():
+        header_scores = scores["header_score"]
+        details_scores = scores["details_score"]
+    
+        total_spelling_score += (header_scores["spelling_score"] + details_scores["spelling_score"])
+        total_capitalization_score += (header_scores["capitalization_score"] + details_scores["capitalization_score"])
+        total_coherence_score += (header_scores["coherence_score"] + details_scores["coherence_score"])
+        total_overall_score += (header_scores["overall_score"] + details_scores["overall_score"])
+        total_sections += 2  # Sumar encabezado y detalle como secciones separadas
+    
+    # Calcular promedios generales
+    average_spelling_score = total_spelling_score / total_sections if total_sections > 0 else 0
+    average_capitalization_score = total_capitalization_score / total_sections if total_sections > 0 else 0
+    average_coherence_score = total_coherence_score / total_sections if total_sections > 0 else 0
+    average_overall_score = (average_spelling_score+ average_capitalization_score + average_coherence_score)/3
+    
+    # Calcular puntajes ajustados
+    round_spelling_score = round((average_spelling_score / 100) * 5, 2) 
+    round_capitalization_score = round((average_capitalization_score / 100) * 5, 2) 
+    round_coherence_score = round((average_coherence_score / 100) * 5, 2) 
+    round_overall_score = round((average_overall_score / 100) * 5, 2) 
+    
+    # Agregar los puntajes combinados a la tabla
+    presentation_table_data.append(["Ortografía", f"{round_spelling_score:.2f}"])
+    presentation_table_data.append(["Gramática", f"{round_capitalization_score:.2f}"])
+    presentation_table_data.append(["Coherencia", f"{round_coherence_score:.2f}"])
+    presentation_table_data.append(["Puntaje Total", f"{round_overall_score:.2f}"])
     
     # Crear la tabla con ancho ajustado para las columnas
     presentation_table = Table(presentation_table_data, colWidths=[4 * inch, 2 * inch])
     
     # Estilo de la tabla
     presentation_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F0F0F0")),  # Fondo para encabezados
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),  # Color de texto en encabezados
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),  # Centrar texto
-        ('FONTNAME', (0, 0), (-1, 0), 'CenturyGothicBold'),  # Fuente en encabezados
-        ('FONTNAME', (0, 1), (-1, -1), 'CenturyGothic'),  # Fuente en datos
-        ('FONTSIZE', (0, 0), (-1, -1), 10),  # Tamaño de fuente
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),  # Espaciado inferior en encabezados
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),  # Líneas de la tabla
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),  # Centrar texto verticalmente
-    ]))
-    
-    # Agregar la tabla de presentación
-    elements.append(Paragraph("<b>Evaluación de la Presentación:</b>", styles['CenturyGothicBold']))
-    elements.append(Spacer(1, 0.2 * inch))
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#F0F0F0")), # Fondo para encabezados
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.black), # Color de texto en encabezados
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'), # Centrar texto
+        ('FONTNAME', (0, 0), (-1, 0), 'CenturyGothicBold'), # Fuente en encabezados
+        ('FONTNAME', (0, 1), (-1, -1), 'CenturyGothic'), # Fuente en datos
+        ('FONTSIZE', (0, 0), (-1, -1), 10), # Tamaño de fuente
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8), # Espaciado inferior en encabezados
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey), # Líneas de la tabla
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), # Centrar texto verticalmente
+        ]))
+    # Agregar la tabla a los elementos
     elements.append(presentation_table)
     elements.append(Spacer(1, 0.2 * inch))
 
