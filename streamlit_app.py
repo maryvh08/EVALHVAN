@@ -3039,7 +3039,72 @@ def home_page():
         if st.button("Ir a Evaluador Descriptivo", key="btn_descriptive"):
             st.session_state.page = "secondary"
 
-    st.markdown("<div class='disclaimer'>⚠️ DISCLAIMER: LA INFORMACIÓN PROPORCIONADA POR ESTA HERRAMIENTA NO REPRESENTA NINGÚN TIPO DE DECISIÓN, SU FIN ES MERAMENTE ILUSTRATIVO</div>", unsafe_allow_html=True)
+    st.write("---") 
+
+    st.write("ℹ️ Aquí puedes encontrar información si quieres saber un poco más") 
+
+    # Botones de información
+    link_url_cargos = "https://drive.google.com/drive/folders/1hSUChvaYymUJ6g-IEfiY4hYqikePsQ9P?usp=drive_link"
+    link_label_cargos = "Info cargos"
+    link_url_indicadores = "https://docs.google.com/document/d/1BM07wuVaXEWcdurTRr8xBzjsB1fiWt6wGqOzLiyQBs8/edit?usp=drive_link"
+    link_label_indicadores = "Info indicadores"
+    link_url_perfiles = "https://docs.google.com/document/d/1WvAe0toLeedLXQ4YYUsiK5OUTPacTQ8HkDVdyShl3l0/edit?usp=drive_link"
+    link_label_perfiles = "Info perfiles"
+
+    st.markdown(f"""
+        <div style="display: flex; justify-content: center; gap: 20px;">
+            <a href="{link_url_cargos}" target="_blank" style="text-decoration:none;">
+                <button style="
+                    background-color: #0D62AD;
+                    border: none;
+                    color: white;
+                    padding: 12px 24px;
+                    text-align: center;
+                    font-size: 16px;
+                    cursor: pointer;
+                    border-radius: 4px;
+                ">
+                    {link_label_cargos}
+                </button>
+            </a>
+            <a href="{link_url_indicadores}" target="_blank" style="text-decoration:none;">
+                <button style="
+                    background-color: #A8CF45;
+                    border: none;
+                    color: white;
+                    padding: 12px 24px;
+                    text-align: center;
+                    font-size: 16px;
+                    cursor: pointer;
+                    border-radius: 4px;
+                ">
+                    {link_label_indicadores}
+                </button>
+            </a>
+            <a href="{link_url_perfiles}" target="_blank" style="text-decoration:none;">
+                <button style="
+                    background-color: #76C04E;
+                    border: none;
+                    color: white;
+                    padding: 12px 24px;
+                    text-align: center;
+                    font-size: 16px;
+                    cursor: pointer;
+                    border-radius: 4px;
+                ">
+                    {link_label_perfiles}
+                </button>
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.write("---")
+
+    st.markdown("""
+        <div style="text-align: center; font-weight: bold; font-size: 20px;">
+        Evaluación de hoja de vida más sencilla, al acance de evaluadores y aspirantes.
+        </div>
+        """, unsafe_allow_html=True)
     
     
 def primary_page():
@@ -3177,7 +3242,43 @@ def secondary_page():
     else:
         st.button("Generar Reporte PDF", key="btn_generate_descriptive_disabled", disabled=True)
         
-    st.markdown("<div class='disclaimer'>⚠️ DISCLAIMER: LA INFORMACIÓN PROPORCIONADA POR ESTA HERRAMIENTA NO REPRESENTA NINGÚN TIPO DE DECISIÓN, SU FIN ES MERAMENTE ILUSTRATIVO</div>", unsafe_allow_html=True)
+    st.write("---")
+
+    st.markdown(
+        """
+        <div style="text-align: center; font-weight: bold; font-size: 20px;">
+        Plantilla Propuesta HV 📑
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    st.write("")
+    imagen_plantilla = 'PLANTILLA PROPUESTA HV ANEIAP.jpg'
+    st.image(imagen_plantilla, use_container_width=True)
+
+    link_url_plantilla = "https://drive.google.com/drive/folders/16i35reQpBq9eC2EuZfy6E6Uul5XVDN8D?usp=sharing"
+    link_label_plantilla = "Explorar plantilla"
+
+    st.markdown(f"""
+        <div style="display: flex; justify-content: center; gap: 20px;">
+            <a href="{link_url_plantilla}" target="_blank" style="text-decoration:none;">
+                <button style="
+                    background-color: #76C04E;
+                    border: none;
+                    color: white;
+                    padding: 12px 24px;
+                    text-align: center;
+                    font-size: 16px;
+                    cursor: pointer;
+                    border-radius: 4px;
+                ">
+                    {link_label_plantilla}
+                </button>
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    st.write("---")
     
     # Botón para volver al inicio
     if st.button("⬅️ Volver al Inicio", key="btn_back_descriptive"):
