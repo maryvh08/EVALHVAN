@@ -157,15 +157,6 @@ def load_advice(filepath="advice.json"):
     with open(filepath, "r", encoding="utf-8") as file:
         return json.load(file)
 
-# Intentar cargar las imágenes y los datos
-try:
-    images = load_images()
-    indicators = load_indicators()
-    advice = load_advice()
-except Exception as e:
-    st.error(f"Error al inicializar la aplicación: {e}")
-    st.stop()
-
 # Rutas a los archivos
 background_path = "images/Fondo_reporte.png"
 portada_path = "images/Portada_Analizador.png"
