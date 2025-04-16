@@ -178,8 +178,8 @@ except Exception as e:
     st.stop()
 
 # Rutas a los archivos
-background_path = images["fondo"]
-portada_path = images["portada"]
+background_path = images/Fondo reporte.png
+portada_path = images/Portada Analizador.png
 
 # FUNCIONES DE UTILIDAD
 
