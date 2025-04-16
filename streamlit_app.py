@@ -2659,24 +2659,7 @@ def home_page():
 
     st.markdown("<div class='disclaimer'>⚠️ DISCLAIMER: LA INFORMACIÓN PROPORCIONADA POR ESTA HERRAMIENTA NO REPRESENTA NINGÚN TIPO DE DECISIÓN, SU FIN ES MERAMENTE ILUSTRATIVO</div>", unsafe_allow_html=True)
     
-    st.markdown("<h2 class='subtitle'>Descargar Plantilla de Hoja de Vida</h2>", unsafe_allow_html=True)
-    st.write("Puedes descargar nuestro formato recomendado de hoja de vida para obtener mejores resultados.")
     
-    col1, col2 = st.columns(2)
-    with col1:
-        st.download_button(
-            label="Descargar Plantilla Simplificada",
-            data=open("Plantilla_HV_Simplificada.pdf", "rb").read(),
-            file_name="Plantilla_HV_Simplificada.pdf",
-            mime="application/pdf",
-        )
-    with col2:
-        st.download_button(
-            label="Descargar Plantilla Descriptiva",
-            data=open("Plantilla_HV_Descriptiva.pdf", "rb").read(),
-            file_name="Plantilla_HV_Descriptiva.pdf",
-            mime="application/pdf",
-        )
 def primary_page():
     st.markdown("<h1 class='main-title'>Evaluador Simplificado de Hojas de Vida</h1>", unsafe_allow_html=True)
     st.image(version_actual, use_container_width=True)
