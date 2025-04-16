@@ -672,7 +672,8 @@ def generate_report_with_background(pdf_path, position, candidate_name, backgrou
     att_lines = [line.strip() for line in att_lines if line.strip()]  # Eliminar líneas vacías
 
     # Obtener los indicadores y palabras clave para el cargo seleccionado
-    position_indicators = indicators.get(chapter, {}).get(position, {})
+    chapter_indicators = indicators.get(chapter, {})
+    position_indicators = chapter_indicators.get(position, {})
     if not position_indicators:
         st.error(f"No se encontraron indicadores para el cargo {position} en el capítulo {chapter}.")
         return
