@@ -2418,7 +2418,6 @@ def analyze_and_generate_descriptive_report_with_background(pdf_path, position, 
     org_score = (parcial_org_func_score + parcial_org_profile_score)/2
     att_score = (parcial_att_func_score + parcial_att_profile_score)/2
     prof_score = (profile_func_score + profile_profile_score)/2
-    total_score = (overall_score + exp_score + org_score + att_score + prof_score)/5
     
     # Registrar la fuente personalizada
     pdfmetrics.registerFont(TTFont('CenturyGothic', 'fonts/Century_Gothic.ttf'))
