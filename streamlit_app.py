@@ -2863,6 +2863,8 @@ def analyze_and_generate_descriptive_report_with_background(pdf_path, position, 
     elements.append(Paragraph("<b>Puntajes totales:</b>", styles['CenturyGothicBold']))
     elements.append(Spacer(1, 0.2 * inch))
 
+    total_score= (exp_score+ att_score+ org_score+ round_overall_score+ profile_score)/5
+
     # Crear tabla de evaluación de presentación
     total_table = Table(
         [
