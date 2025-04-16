@@ -3098,14 +3098,6 @@ def home_page():
         </div>
         """, unsafe_allow_html=True)
 
-    st.write("---")
-
-    st.markdown("""
-        <div style="text-align: center; font-weight: bold; font-size: 20px;">
-        Evaluación de hoja de vida más sencilla, al acance de evaluadores y aspirantes.
-        </div>
-        """, unsafe_allow_html=True)
-    
     
 def primary_page():
     st.markdown("<h1 class='main-title'>Evaluador Simplificado de Hojas de Vida</h1>", unsafe_allow_html=True)
@@ -3243,6 +3235,8 @@ def secondary_page():
         st.button("Generar Reporte PDF", key="btn_generate_descriptive_disabled", disabled=True)
         
     st.write("---")
+
+    st.markdown("<div class='disclaimer'>⚠️ DISCLAIMER: LA INFORMACIÓN PROPORCIONADA POR ESTA HERRAMIENTA NO REPRESENTA NINGÚN TIPO DE DECISIÓN, SU FIN ES MERAMENTE ILUSTRATIVO</div>", unsafe_allow_html=True)
 
     st.markdown(
         """
