@@ -1993,9 +1993,17 @@ def analyze_and_generate_descriptive_report_with_background(pdf_path, position, 
     related_items_count = {indicator: 0 for indicator in position_indicators}
 
     # PERFIL CANDIDATO
-     for indicator, keywords in position_indicators.items():
-        total_keywords += len(keywords)  # Set total keywords
+    # Calcular porcentajes de concordancia con perfil de candidato
+    keyword_match_percentage = 0.0  # Set to 0
+    profile_func_match = 0.0  # Setting the default
+    profile_profile_match = 0.0
     
+    total_keywords = 0
+    matched_keywords = 0
+    
+    for indicator, keywords in position_indicators.items():
+        total_keywords += len(keywords)  # Set total keywords
+
         prompt = f"""
             Analiza el siguiente texto: '{candidate_profile_text}'.
             Indica si las siguientes palabras clave están presentes en el texto: {', '.join(keywords)}.
