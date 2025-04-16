@@ -142,6 +142,8 @@ st.markdown("""
 
 # Cargar las imágenes
 logo_aneiap= "images/ISOLOGO C A COLOR.png"
+split_actual= "images/Split actual.jpg"
+split_descriptivo= "Split descriptivo.jpg"
 version_actual= "images/Analizador Version Actual.jpg"
 version_descriptiva= "images/Analizador Version Descriptiva.jpg"
 evaluador_logo= "images/Evaluador Logo.jpg"
@@ -2629,7 +2631,7 @@ def home_page():
 
     with col1:
         st.markdown("<h3>Versión Simplificada</h3>", unsafe_allow_html=True)
-        st.image(images["version_actual"], use_container_width=True)
+        st.image(splip_actual, use_container_width=True)
         st.write("""
         Esta versión analiza hojas de vida en formato simplificado donde:
         
@@ -2638,14 +2640,12 @@ def home_page():
         - Ideal para el formato actual de ANEIAP
         """)
         
-        st.image(images["ejemplo_simple"], use_container_width=True)
-        
         if st.button("Ir a Evaluador Simplificado", key="btn_simple"):
             st.session_state.page = "primary"
 
     with col2:
         st.markdown("<h3>Versión Descriptiva</h3>", unsafe_allow_html=True)
-        st.image(images["version_descriptiva"], use_container_width=True)
+        st.image(split_descriptivo, use_container_width=True)
         st.write("""
         Esta versión analiza hojas de vida en formato descriptivo donde:
         
@@ -2653,8 +2653,6 @@ def home_page():
         - Incluye una descripción detallada de cada actividad
         - Más cercana al entorno profesional
         """)
-        
-        st.image(images["ejemplo_descriptivo"], use_container_width=True)
         
         if st.button("Ir a Evaluador Descriptivo", key="btn_descriptive"):
             st.session_state.page = "secondary"
@@ -2681,7 +2679,7 @@ def home_page():
         )
 def primary_page():
     st.markdown("<h1 class='main-title'>Evaluador Simplificado de Hojas de Vida</h1>", unsafe_allow_html=True)
-    st.image(images["version_actual"], use_container_width=True)
+    st.image(version_actual, use_container_width=True)
     
     st.markdown("<h2 class='subtitle'>Ingresa tus datos y carga tu hoja de vida</h2>", unsafe_allow_html=True)
     
@@ -2750,7 +2748,7 @@ def primary_page():
 
 def secondary_page():
     st.markdown("<h1 class='main-title'>Evaluador Descriptivo de Hojas de Vida</h1>", unsafe_allow_html=True)
-    st.image(images["version_descriptiva"], use_container_width=True)
+    st.image(version_descriptiva, use_container_width=True)
     
     st.markdown("<h2 class='subtitle'>Ingresa tus datos y carga tu hoja de vida</h2>", unsafe_allow_html=True)
     
