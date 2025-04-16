@@ -33,6 +33,8 @@ import matplotlib.pyplot as plt
 import statsmodels.api as sm
 from PIL import Image, ImageFilter, ImageOps, ImageEnhance
 
+#Link de la página: https://evalhvan.streamlit.app/
+
 # Configuraciones de página
 st.set_page_config(
     page_title="Evaluador HV ANEIAP",
