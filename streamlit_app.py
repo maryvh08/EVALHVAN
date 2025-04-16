@@ -148,7 +148,7 @@ version_actual= "images/Analizador Versión Actual.jpg"
 version_descriptiva= "images/Analizador Version Descriptiva.jpg"
 evaluador_logo= "images/Evaluador Logo.jpg"
 portada= "images/Portada Analizador.png"
-fondo= "images/Fondo Reporte.png"
+fondo= "images/Fondo reporte.png"
 
 # Cargar los archivos de JSON
 def load_indicators(filepath="indicators.json"):
@@ -165,7 +165,7 @@ indicators = load_indicators()
 advice = load_advice()
 
 # Rutas a los archivos
-background_path = "images/Fondo_reporte.png"
+background_path = "images/Fondo reporte.png"
 portada_path = "images/Portada Analizador.png"
 
 # FUNCIONES DE UTILIDAD
