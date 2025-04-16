@@ -2208,7 +2208,190 @@ def analyze_and_generate_descriptive_report_with_background(pdf_path, position, 
         parcial_att_profile_match = 0
 
     # Evaluación de la presentación
-    presentation_results = evaluate_cv_presentation_with_headers(pdf_path)
+    # Instanciar el corrector ortográfico
+    spell = SpellChecker()
+    
+    # 📌 **Evaluación avanzada de presentación**
+    def evaluate_spelling(text):
+        """Evalúa la ortografía y devuelve un puntaje entre 0 y 100, optimizando la búsqueda."""
+        if not text or not isinstance(text, str) or len(text.strip()) == 0:
+            return 100  
+    
+        words = re.findall(r'\b\w+\b', text.lower())  # Extraer palabras sin puntuación
+        total_words = len(words)
+    
+        if total_words < 5:  
+            return 100  
+    
+        misspelled_words = set(spell.unknown(words))  # Usar set() para búsquedas rápidas
+        misspelled_count = len(misspelled_words)
+    
+        # **📌 Aplicar penalización con ponderación menor**
+        spelling_score = max(0, 100 - (misspelled_count / total_words) * 150)
+    
+        return round(spelling_score, 2)
+    
+    
+    def evaluate_capitalization(text):
+        """Evalúa la gramática basándose en concordancia de tiempos verbales, estructura de oraciones y redundancias."""
+        if not text or not isinstance(text, str) or len(text.strip()) == 0:
+            return 100  # Si no hay texto, asumimos puntaje perfecto
+    
+        sentences = re.split(r'[.!?]\s*', text.strip())[:20]  # Limitar a 20 frases para optimizar rendimiento
+        words = re.findall(r'\b\w+\b', text.lower())
+        total_sentences = len(sentences)
+        total_words = len(words)
+    
+        if total_sentences == 0 or total_words == 0:
+            return 100  # Evitar división por 0
+    
+        # 📌 **1️⃣ Concordancia de tiempos verbales**
+        verb_tenses = {
+        "presente": [
+            "es", "tiene", "hace", "puede", "debe", "quiere", "está", "lidera", "coordina", "organiza",
+            "gestiona", "asiste", "supervisa", "evalúa", "dirige", "crea", "redacta", "contacta",
+            "realiza", "participa", "documenta", "establece", "facilita", "desarrolla", "analiza"
+        ],
+        "pasado": [
+            "fue", "tuvo", "hizo", "pudo", "debía", "quiso", "estaba", "lideró", "coordinó", "organizó",
+            "gestionó", "asistió", "supervisó", "evaluó", "dirigió", "creó", "redactó", "contactó",
+            "realizó", "participó", "documentó", "estableció", "facilitó", "desarrolló", "analizó"
+        ],
+        "futuro": [
+            "será", "tendrá", "hará", "podrá", "deberá", "querrá", "estará", "liderará", "coordinará",
+            "organizará", "gestionará", "asistirá", "supervisará", "evaluará", "dirigirá", "creará",
+            "redactará", "contactará", "realizará", "participará", "documentará", "establecerá",
+            "facilitará", "desarrollará", "analizará"
+        ]
+    }
+    
+        # 📌 **1️⃣ Concordancia de tiempos verbales**
+        verb_counts = {tense: sum(1 for word in words if word in verb_tenses[tense]) for tense in verb_tenses}
+        max_tense_count = max(verb_counts.values(), default=1)
+        inconsistent_tenses = sum(1 for tense in verb_tenses if verb_counts[tense] > 0 and verb_counts[tense] < max_tense_count * 0.3)
+        tense_score = max(0, 100 - inconsistent_tenses * 20)  # Penaliza si hay cambios abruptos de tiempos verbales
+    
+        # 📌 **2️⃣ Evaluación de estructura de oraciones**
+        structure_errors = sum(1 for sentence in sentences if not re.search(r"\b\w+\b\s+\b\w+\b", sentence))
+        structure_score = max(0, 100 - (structure_errors / total_sentences) * 100)
+    
+        # 📌 **3️⃣ Identificación de redundancias**
+        redundant_phrases = {"además también", "pero sin embargo", "subir arriba", "bajar abajo"}
+        redundant_count = sum(1 for phrase in redundant_phrases if phrase in text.lower())
+        redundancy_score = max(0, 100 - redundant_count * 25)
+    
+        # 📌 **Puntaje Final de Gramática**
+        capitalization_score = round((tense_score + structure_score + redundancy_score)/3, 2)
+        
+        return capitalization_score
+    
+    
+    def evaluate_sentence_coherence(text):
+        """
+        Evalúa la coherencia del texto en función de conectores lógicos, longitud de frases, transiciones,
+        repetición de ideas y la estructura sintáctica.
+        :param text: Texto a evaluar.
+        :return: Puntaje de coherencia entre 0 y 100.
+        """
+        if not text or not isinstance(text, str):
+            return 50  # Devolver un puntaje intermedio si el texto está vacío o no es válido
+    
+        sentences = re.split(r'[.!?]\s*', text.strip())  # Dividir en oraciones
+        sentences = [sentence for sentence in sentences if sentence]  # Filtrar oraciones vacías
+        total_sentences = len(sentences)
+    
+        words = text.split()
+        total_words = len(words)
+    
+        if total_words == 0 or total_sentences == 0:
+            return 100  # Si no hay texto, asumimos coherencia perfecta
+    
+        # **1️⃣ Uso de conectores lógicos (Evaluación de cohesión)**
+        logical_connectors = {
+            "adición": ["además", "también", "igualmente", "asimismo"],
+            "causa": ["porque", "ya que", "debido a", "dado que"],
+            "consecuencia": ["por lo tanto", "así que", "en consecuencia", "de modo que"],
+            "contraste": ["sin embargo", "pero", "aunque", "no obstante"],
+            "condición": ["si", "en caso de", "a menos que"],
+            "tiempo": ["mientras", "cuando", "después de", "antes de"],
+        }
+        
+        connector_count = sum(
+            1 for word in words if any(word.lower() in group for group in logical_connectors.values())
+        )
+        connector_ratio = connector_count / total_sentences if total_sentences > 0 else 0
+        connector_score = min(100, connector_ratio * 200)  # Escalar a 100
+    
+        # **2️⃣ Consistencia en la longitud de frases**
+        sentence_lengths = [len(sentence.split()) for sentence in sentences]
+        avg_length = sum(sentence_lengths) / total_sentences
+        length_variance = sum((len(sentence.split()) - avg_length) ** 2 for sentence in sentences) / total_sentences
+        length_variance_penalty = max(0, 100 - length_variance * 5)  # Penalización por variabilidad excesiva
+    
+        # **3️⃣ Transiciones entre frases**
+        transition_words = ["entonces", "así", "por otro lado", "de esta manera", "en este sentido", "por ende"]
+        transition_count = sum(
+            1 for sentence in sentences if any(word in sentence.lower() for word in transition_words)
+        )
+        transition_score = (transition_count / total_sentences) * 100 if total_sentences > 0 else 0
+    
+        # **4️⃣ Evitar repeticiones excesivas de palabras clave**
+        word_counts = Counter(words)
+        repeated_words = {word: count for word, count in word_counts.items() if count > 3}
+        repeated_ratio = sum(repeated_words.values()) / total_words if total_words > 0 else 0
+        repetition_penalty = min(100, repeated_ratio * 200)  # Penalización basada en la repetición excesiva
+    
+        # **5️⃣ Evaluación de variabilidad léxica**
+        unique_words = len(set(words))
+        lexical_diversity = (unique_words / total_words) * 100 if total_words > 0 else 100
+        lexical_score = max(0, min(100, lexical_diversity))
+    
+        # **📌 Ponderación de los factores**
+        coherence_score = (
+            (connector_score * 0.3) +  # Uso de conectores
+            (length_variance_penalty * 0.2) +  # Consistencia en la longitud de frases
+            (transition_score * 0.2) +  # Uso de transiciones
+            ((100 - repetition_penalty) * 0.2) +  # Penalización por repeticiones
+            (lexical_score * 0.1)  # Variedad léxica
+        )
+    
+        return round(coherence_score, 2)
+    
+    
+    # 📌 **Evaluación por encabezado y detalles**
+    presentation_results = {}
+    for header, details in text_data.items():
+        details_text = " ".join(details)
+    
+        # 📌 **Evaluar encabezado**
+        header_spelling = evaluate_spelling(header)
+        header_capitalization = evaluate_capitalization(header)
+        header_coherence = evaluate_sentence_coherence(header)
+    
+        header_overall = round((header_spelling + header_capitalization + header_coherence) / 3, 2)
+    
+        # 📌 **Evaluar detalles**
+        details_spelling = evaluate_spelling(details_text)
+        details_capitalization = evaluate_capitalization(details_text)
+        details_coherence = evaluate_sentence_coherence(details_text)
+    
+        details_overall = round((details_spelling + details_capitalization + details_coherence) / 3, 2)
+    
+        # 📌 **Guardar resultados en la estructura final**
+        presentation_results[header] = {
+            "header_score": {
+                "spelling_score": header_spelling,
+                "capitalization_score": header_capitalization,
+                "coherence_score": header_coherence,
+                "overall_score": header_overall,
+            },
+            "details_score": {
+                "spelling_score": details_spelling,
+                "capitalization_score": details_capitalization,
+                "coherence_score": details_coherence,
+                "overall_score": details_overall,
+            },
+        }
     
     # Calcular puntajes normalizados al rango 0-5
     spelling_score = round((presentation_results["spelling_score"] / 100) * 5, 2)
