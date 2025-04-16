@@ -2927,9 +2927,9 @@ def analyze_and_generate_descriptive_report_with_background(pdf_path, position, 
     else:
         comments.append("Tu perfil necesita mejoras para alinearse mejor con las expectativas del cargo. Trabaja en desarrollar habilidades y competencias clave.")
     
-    if overall_score >= 4:
+    if round_overall_score >= 4:
         comments.append("La presentación de tu hoja de vida es excelente. Refleja profesionalismo y claridad. Continúa aplicando este enfoque para mantener un alto estándar.")
-    elif overall_score >= 3:
+    elif round_overall_score >= 3:
         comments.append("La presentación de tu hoja de vida es buena, pero puede mejorar en aspectos como coherencia, ortografía o formato general. Dedica tiempo a revisar estos detalles.")
     else:
         comments.append("La presentación de tu hoja de vida necesita mejoras significativas. Asegúrate de revisar la ortografía, la gramática y la coherencia para proyectar una imagen más profesional.")
