@@ -141,7 +141,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Cargar las imágenes
-logo_aneiap= "images/ISOLOGO C COLOR.png"
+logo_aneiap= "images/ISOLOGO C A COLOR.png"
 version_actual= "images/Analizador Version Actual.jpg"
 version_descriptiva= "images/Analizador Version Descriptiva.jpg"
 evaluador_logo= "images/Evaluador Logo.jpg"
