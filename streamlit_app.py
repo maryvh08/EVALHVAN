@@ -166,7 +166,7 @@ advice = load_advice()
 
 # Rutas a los archivos
 background_path = "images/Fondo_reporte.png"
-portada_path = "images/Portada_Analizador.png"
+portada_path = "images/Portada Analizador.png"
 
 # FUNCIONES DE UTILIDAD
 
