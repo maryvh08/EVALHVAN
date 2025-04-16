@@ -3190,7 +3190,9 @@ if "page" not in st.session_state:
 # Sidebar con información y opciones
 with st.sidebar:
     # Logo ANEIAP
-    st.image(logo_aneiap, use_container_width=True)
+    col1, col2, col3 = st.columns(3)
+    with col2:
+        st.image(logo_aneiap, use_container_width=True)
     
     # Información sobre los cargos
     with st.expander("Cargos de JDC-IC-CCP", expanded=False):
