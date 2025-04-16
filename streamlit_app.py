@@ -2207,11 +2207,15 @@ def analyze_and_generate_descriptive_report_with_background(pdf_path, position, 
         parcial_att_func_match = 0
         parcial_att_profile_match = 0
 
-    # Evaluación de la presentación
+    # Extraer texto del PDF con encabezados y detalles
+    text_data = extract_text_with_headers_and_details(pdf_path)  # Asegúrate de tener esta función definida
+    
+    if not text_data:
+        st.error("No se pudo extraer texto del archivo PDF.")
+        return None
+    
     # Instanciar el corrector ortográfico
     spell = SpellChecker()
-    # Extraer texto del PDF con encabezados y detalles
-    text_data = extract_text_with_headers_and_details(pdf_path)  # Asegúrate de tener esta función definid
     
     # 📌 **Evaluación avanzada de presentación**
     def evaluate_spelling(text):
