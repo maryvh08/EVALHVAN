@@ -875,6 +875,14 @@ def generate_report_with_background(pdf_path, position, candidate_name, backgrou
         if att_func_match > 0 or att_profile_match > 0:
             att_line_results.append((line, att_func_match, att_profile_match))
 
+    # Calcular porcentajes de concordancia con perfil de candidato
+    keyword_match_percentage = 0.0  # Set to 0
+    profile_func_match = 0.0  # Setting the default
+    profile_profile_match = 0.0
+    
+    total_keywords = 0
+    matched_keywords = 0
+    
     for indicator, keywords in position_indicators.items():
         total_keywords += len(keywords)  # Set total keywords
     
@@ -917,7 +925,6 @@ def generate_report_with_background(pdf_path, position, candidate_name, backgrou
     if keyword_match_percentage == 100:
         profile_func_match = 100.0
         profile_profile_match = 100.0
-
     else:
         # Calcular similitud con funciones y perfil del cargo si la coincidencia es baja
         profile_func_match, profile_profile_match = calculate_keyword_match_percentage_gemini(candidate_profile_text, position_indicators, functions_text, profile_text)
