@@ -882,3 +882,243 @@ def perform_detailed_analysis(experience_text, event_text, attendance_text, prof
     }
     
     return results
+
+def perform_descriptive_analysis(experience_items, event_items, attendance_items, profile_text, 
+                                presentation_results, position_indicators, functions_text, profile_text_cargo):
+    """Realizar análisis detallado de las secciones en formato descriptivo"""
+    # Inicializar resultados
+    results = {
+        'experience': [],
+        'events': [],
+        'attendance': [],
+        'profile': {'func_match': 0, 'profile_match': 0},
+        'presentation': {},
+        'indicators': {},
+        'scores': {}
+    }
+    
+    # Calcular la cantidad de ítems relacionados para cada indicador
+    related_items_count = {indicator: 0 for indicator in position_indicators}
+    
+    # Analizar EXPERIENCIA EN ANEIAP
+    for header, details in experience_items.items():
+        header_and_details = f"{header} {' '.join(details)}"
+        
+        # Revisar palabras clave en el encabezado
+        header_contains_keywords = any(
+            keyword.lower() in header.lower() for keywords in position_indicators.values() for keyword in keywords
+        )
+        
+        # Revisar palabras clave en los detalles
+        details_contains_keywords = any(
+            keyword.lower() in detail.lower() for detail in details for keywords in position_indicators.values() for keyword in keywords
+        )
+        
+        # Determinar concordancia en funciones y perfil
+        if header_contains_keywords or details_contains_keywords:
+            exp_func_match = 100
+            exp_profile_match = 100
+        else:
+            exp_func_match = calculate_similarity(header_and_details, functions_text)
+            exp_profile_match = calculate_similarity(header_and_details, profile_text_cargo)
+        
+        # Ignorar ítems con 0% en funciones y perfil
+        if exp_func_match > 0 or exp_profile_match > 0:
+            results['experience'].append({
+                'header': header, 
+                'details': details, 
+                'func_match': exp_func_match, 
+                'profile_match': exp_profile_match
+            })
+        
+        # Evaluar indicadores únicamente para el cargo seleccionado
+        for indicator, keywords in position_indicators.items():
+            # Identificar si el encabezado o detalles contienen palabras clave del indicador
+            if any(keyword.lower() in header_and_details.lower() for keyword in keywords):
+                related_items_count[indicator] += 1
+    
+    # Calcular porcentajes de indicadores
+    total_items = len(experience_items)
+    indicator_percentages = {
+        indicator: (count / total_items) * 100 if total_items > 0 else 0 
+        for indicator, count in related_items_count.items()
+    }
+    results['indicators'] = indicator_percentages
+    
+    # Analizar EVENTOS ORGANIZADOS
+    for header, details in event_items.items():
+        header_and_details = f"{header} {' '.join(details)}"
+        
+        # Revisar palabras clave en el encabezado
+        header_contains_keywords = any(
+            keyword.lower() in header.lower() for keywords in position_indicators.values() for keyword in keywords
+        )
+        
+        # Revisar palabras clave en los detalles
+        details_contains_keywords = any(
+            keyword.lower() in detail.lower() for detail in details for keywords in position_indicators.values() for keyword in keywords
+        )
+        
+        # Determinar concordancia en funciones y perfil
+        if header_contains_keywords or details_contains_keywords:
+            org_func_match = 100
+            org_profile_match = 100
+        else:
+            org_func_match = calculate_similarity(header_and_details, functions_text)
+            org_profile_match = calculate_similarity(header_and_details, profile_text_cargo)
+        
+        # Ignorar ítems con 0% en funciones y perfil
+        if org_func_match > 0 or org_profile_match > 0:
+            results['events'].append({
+                'header': header, 
+                'details': details, 
+                'func_match': org_func_match, 
+                'profile_match': org_profile_match
+            })
+    
+    # Analizar ASISTENCIA A EVENTOS
+    for header, details in attendance_items.items():
+        header_and_details = f"{header} {' '.join(details)}"
+        
+        # Revisar palabras clave en el encabezado
+        header_contains_keywords = any(
+            keyword.lower() in header.lower() for keywords in position_indicators.values() for keyword in keywords
+        )
+        
+        # Revisar palabras clave en los detalles
+        details_contains_keywords = any(
+            keyword.lower() in detail.lower() for detail in details for keywords in position_indicators.values() for keyword in keywords
+        )
+        
+        # Determinar concordancia en funciones y perfil
+        if header_contains_keywords or details_contains_keywords:
+            att_func_match = 100
+            att_profile_match = 100
+        else:
+            att_func_match = calculate_similarity(header_and_details, functions_text)
+            att_profile_match = calculate_similarity(header_and_details, profile_text_cargo)
+        
+        # Ignorar ítems con 0% en funciones y perfil
+        if att_func_match > 0 or att_profile_match > 0:
+            results['attendance'].append({
+                'header': header, 
+                'details': details, 
+                'func_match': att_func_match, 
+                'profile_match': att_profile_match
+            })
+    
+    # Analizar PERFIL
+    profile_contains_keywords = any(
+        keyword.lower() in profile_text.lower() for keywords in position_indicators.values() for keyword in keywords
+    )
+    
+    if profile_contains_keywords:
+        results['profile']['func_match'] = 100
+        results['profile']['profile_match'] = 100
+    else:
+        results['profile']['func_match'] = calculate_similarity(profile_text, functions_text)
+        results['profile']['profile_match'] = calculate_similarity(profile_text, profile_text_cargo)
+    
+    # Analizar Presentación
+    results['presentation'] = {
+        'spelling_score': (presentation_results['spelling_score'] / 100) * 5,
+        'capitalization_score': (presentation_results['capitalization_score'] / 100) * 5,
+        'coherence_score': (presentation_results['coherence_score'] / 100) * 5,
+        'overall_score': (presentation_results['overall_score'] / 100) * 5
+    }
+    
+    # Calcular puntajes parciales
+    exp_func_sum = sum(item['func_match'] for item in results['experience']) if results['experience'] else 0
+    exp_profile_sum = sum(item['profile_match'] for item in results['experience']) if results['experience'] else 0
+    exp_count = len(results['experience']) if results['experience'] else 1
+    
+    event_func_sum = sum(item['func_match'] for item in results['events']) if results['events'] else 0
+    event_profile_sum = sum(item['profile_match'] for item in results['events']) if results['events'] else 0
+    event_count = len(results['events']) if results['events'] else 1
+    
+    att_func_sum = sum(item['func_match'] for item in results['attendance']) if results['attendance'] else 0
+    att_profile_sum = sum(item['profile_match'] for item in results['attendance']) if results['attendance'] else 0
+    att_count = len(results['attendance']) if results['attendance'] else 1
+    
+    # Porcentajes parciales
+    parcial_exp_func_match = exp_func_sum / exp_count
+    parcial_exp_profile_match = exp_profile_sum / exp_count
+    
+    parcial_org_func_match = event_func_sum / event_count
+    parcial_org_profile_match = event_profile_sum / event_count
+    
+    parcial_att_func_match = att_func_sum / att_count
+    parcial_att_profile_match = att_profile_sum / att_count
+    
+    # Puntajes normalizados (0-5)
+    exp_func_score = (parcial_exp_func_match * 5) / 100
+    exp_profile_score = (parcial_exp_profile_match * 5) / 100
+    
+    org_func_score = (parcial_org_func_match * 5) / 100
+    org_profile_score = (parcial_org_profile_match * 5) / 100
+    
+    att_func_score = (parcial_att_func_match * 5) / 100
+    att_profile_score = (parcial_att_profile_match * 5) / 100
+    
+    profile_func_score = (results['profile']['func_match'] * 5) / 100
+    profile_profile_score = (results['profile']['profile_match'] * 5) / 100
+    
+    # Resultados globales
+    global_func_match = (parcial_exp_func_match + parcial_att_func_match + parcial_org_func_match + results['profile']['func_match']) / 4
+    global_profile_match = (parcial_exp_profile_match + parcial_att_profile_match + parcial_org_profile_match + results['profile']['profile_match']) / 4
+    
+    # Puntaje global
+    global_func_score = (global_func_match * 5) / 100
+    global_profile_score = (global_profile_match * 5) / 100
+    
+    # Puntajes totales por sección
+    exp_score = (exp_func_score + exp_profile_score) / 2
+    org_score = (org_func_score + org_profile_score) / 2
+    att_score = (att_func_score + att_profile_score) / 2
+    prof_score = (profile_func_score + profile_profile_score) / 2
+    
+    # Puntaje final
+    total_score = (results['presentation']['overall_score'] + exp_score + org_score + att_score + prof_score) / 5
+    
+    # Guardar puntajes calculados
+    results['scores'] = {
+        'partial': {
+            'experience': {
+                'func_match': parcial_exp_func_match,
+                'profile_match': parcial_exp_profile_match,
+                'func_score': exp_func_score,
+                'profile_score': exp_profile_score,
+                'score': exp_score
+            },
+            'events': {
+                'func_match': parcial_org_func_match,
+                'profile_match': parcial_org_profile_match,
+                'func_score': org_func_score,
+                'profile_score': org_profile_score,
+                'score': org_score
+            },
+            'attendance': {
+                'func_match': parcial_att_func_match,
+                'profile_match': parcial_att_profile_match,
+                'func_score': att_func_score,
+                'profile_score': att_profile_score,
+                'score': att_score
+            },
+            'profile': {
+                'func_match': results['profile']['func_match'],
+                'profile_match': results['profile']['profile_match'],
+                'func_score': profile_func_score,
+                'profile_score': profile_profile_score,
+                'score': prof_score
+            }
+        },
+        'global': {
+            'func_match': global_func_match,
+            'profile_match': global_profile_match,
+            'func_score': global_func_score,
+            'profile_score': global_profile_score
+        },
+        'total': total_score
+    }
+    
+    return results
