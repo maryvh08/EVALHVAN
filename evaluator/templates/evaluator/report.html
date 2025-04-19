@@ -1,0 +1,100 @@
+{% extends 'evaluator/base.html' %}
+
+{% block title %}Reporte - {{ evaluation.candidate_name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="text-center mb-0">Reporte de Evaluación</h2>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h3>Datos del Candidato</h3>
+                        <table class="table">
+                            <tr>
+                                <th>Nombre:</th>
+                                <td>{{ evaluation.candidate_name }}</td>
+                            </tr>
+                            <tr>
+                                <th>Cargo:</th>
+                                <td>{{ evaluation.get_position_display }}</td>
+                            </tr>
+                            <tr>
+                                <th>Capítulo:</th>
+                                <td>{{ evaluation.get_chapter_display }}</td>
+                            </tr>
+                            <tr>
+                                <th>Formato:</th>
+                                <td>{{ evaluation.get_format_type_display }}</td>
+                            </tr>
+                            <tr>
+                                <th>Fecha:</th>
+                                <td>{{ evaluation.created_at|date:"d/m/Y H:i" }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h3>Resultado</h3>
+                        <div class="text-center">
+                            <div class="display-1 fw-bold 
+                                {% if evaluation.score >= 4 %}text-success
+                                {% elif evaluation.score >= 3 %}text-warning
+                                {% else %}text-danger{% endif %}">
+                                {{ evaluation.score|floatformat:2 }}
+                            </div>
+                            <p class="lead">Puntaje total (sobre 5.0)</p>
+                            <div class="progress" style="height: 30px;">
+                                <div class="progress-bar 
+                                    {% if evaluation.score >= 4 %}bg-success
+                                    {% elif evaluation.score >= 3 %}bg-warning
+                                    {% else %}bg-danger{% endif %}" 
+                                     role="progressbar" 
+                                     style="width: {{ evaluation.score|floatformat:0 }}0%;" 
+                                     aria-valuenow="{{ evaluation.score|floatformat:0 }}0" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100">
+                                    {{ evaluation.score|floatformat:0 }}0%
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="text-center">
+                    <h4>Interpretación del Resultado</h4>
+                    <div class="alert 
+                        {% if evaluation.score >= 4 %}alert-success
+                        {% elif evaluation.score >= 3 %}alert-warning
+                        {% else %}alert-danger{% endif %}">
+                        {% if evaluation.score >= 4 %}
+                            <strong>Alta Concordancia (≥ 4):</strong> El candidato tiene una excelente adecuación con las funciones del cargo y el perfil buscado. Su experiencia detallada está estrechamente alineada con las responsabilidades y competencias requeridas.
+                        {% elif evaluation.score >= 3 %}
+                            <strong>Buena Concordancia (≥ 3):</strong> El candidato tiene una buena correspondencia con las funciones del cargo y el perfil deseado. Aunque su experiencia es relevante, existe margen para mejorar en algunas áreas.
+                        {% else %}
+                            <strong>Baja Concordancia (< 3):</strong> El candidato tiene una baja concordancia con los requisitos del cargo y el perfil buscado. Se recomienda enfocar esfuerzos en desarrollar las habilidades necesarias para el cargo.
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="text-center mt-4">
+                    <a href="{% url 'evaluator:download_report' evaluation.pk %}" class="btn btn-primary btn-lg">
+                        <i class="fas fa-download"></i> Descargar Reporte Completo
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="text-center mt-4">
+            <a href="{% url 'evaluator:home' %}" class="btn btn-secondary me-2">
+                <i class="fas fa-home"></i> Volver al Inicio
+            </a>
+            <a href="{% if evaluation.format_type == 'simple' %}{% url 'evaluator:simple' %}{% else %}{% url 'evaluator:descriptive' %}{% endif %}" class="btn btn-success">
+                <i class="fas fa-redo"></i> Realizar Otra Evaluación
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
