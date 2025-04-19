@@ -1,0 +1,60 @@
+{% extends 'evaluator/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Evaluador Simplificado - Evaluador de Hojas de Vida ANEIAP{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="text-center mb-0">Evaluador Simplificado de Hojas de Vida</h2>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-4">
+                    <img src="{{ STATIC_URL }}images/Analizador_Version_Actual.jpg" alt="Evaluador Simplificado" class="img-fluid" style="max-height: 200px;">
+                </div>
+                
+                <h3 class="mb-4">Ingresa tus datos y carga tu hoja de vida</h3>
+                
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    {{ form|crispy }}
+                    <input type="hidden" name="format_type" value="simple">
+                    
+                    <div class="alert alert-info mt-4">
+                        <h5>Formato Simplificado:</h5>
+                        <p>
+                            Este formato evalúa tu hoja de vida donde cada experiencia, evento o actividad 
+                            se presenta como un elemento de lista sin descripciones detalladas. Asegúrate de que 
+                            tu hoja de vida tenga claramente identificadas las secciones:
+                        </p>
+                        <ul>
+                            <li>EXPERIENCIA EN ANEIAP</li>
+                            <li>EVENTOS ORGANIZADOS</li>
+                            <li>ASISTENCIA A EVENTOS ANEIAP</li>
+                            <li>PERFIL</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-file-pdf"></i> Generar Reporte PDF
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="disclaimer mt-4">
+            ⚠️ DISCLAIMER: LA INFORMACIÓN PROPORCIONADA POR ESTA HERRAMIENTA NO REPRESENTA NINGÚN TIPO DE DECISIÓN, SU FIN ES MERAMENTE ILUSTRATIVO
+        </div>
+        
+        <div class="text-center mt-4">
+            <a href="{% url 'evaluator:home' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver al Inicio
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
