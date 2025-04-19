@@ -1,0 +1,101 @@
+{% extends 'evaluator/base.html' %}
+
+{% block title %}Inicio - Evaluador de Hojas de Vida ANEIAP{% endblock %}
+
+{% block content %}
+<div class="text-center mb-5">
+    <h1 class="display-4 fw-bold text-primary">Evaluador de Hojas de Vida ANEIAP</h1>
+    <p class="lead">¿Qué tan listo estás para asumir un cargo de Junta Directiva Capitular? ¡Descúbrelo aquí! 🦁</p>
+    <img src="{{ STATIC_URL }}images/Evaluador_Logo.jpg" alt="EvalHVAN" class="img-fluid mb-4" style="max-width: 400px;">
+</div>
+
+<div class="row mb-5">
+    <div class="col-md-8 mx-auto">
+        <p class="text-center">
+            Esta herramienta analiza el contenido de la hoja de vida ANEIAP, comparándola con las funciones y 
+            perfil del cargo al que aspiras. Evaluamos aspectos puntuales en los cuales se hace necesario que el 
+            aspirante enfatice para asegurar que se encuentre preparado.
+        </p>
+        <p class="text-center">
+            La herramienta fue diseñada para apoyar en el proceso de convocatoria a los evaluadores para 
+            calificar las hojas de vida de los aspirantes.
+        </p>
+        <p class="text-center">
+            Como resultado de este análisis, generamos un reporte PDF descargable con toda la información.
+        </p>
+    </div>
+</div>
+
+<h2 class="text-center mb-4">🔍 Selecciona el tipo de evaluación de Hoja de Vida</h2>
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header text-center">
+                <h3>Versión Simplificada</h3>
+            </div>
+            <div class="card-body text-center">
+                <img src="{{ STATIC_URL }}images/Analizador_Version_Actual.jpg" alt="Formato Simplificado" class="img-fluid mb-3" style="max-height: 200px;">
+                <p>
+                    Esta versión analiza la hoja de vida de forma mucho más rápida evaluando 
+                    cada una de las experiencias como listado, sin descripciones detalladas.
+                </p>
+                <img src="{{ STATIC_URL }}images/Ejemplo_HV_Simplificada.jpg" alt="Ejemplo Simplificado" class="img-fluid mb-3" style="max-height: 200px;">
+                <div class="alert alert-info">
+                    <h5>Recomendaciones</h5>
+                    <ul class="text-start">
+                        <li>Es preferible que la HV no haya sido cambiada de formato varias veces</li>
+                        <li>La EXPERIENCIA EN ANEIAP debe estar enumerada para facilitar el análisis</li>
+                        <li>El análisis puede presentar inconsistencias si la HV no está debidamente separada en subtítulos</li>
+                    </ul>
+                </div>
+                <a href="{% url 'evaluator:simple' %}" class="btn btn-primary btn-lg">Ir a Evaluador Simplificado</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header text-center">
+                <h3>Versión Descriptiva</h3>
+            </div>
+            <div class="card-body text-center">
+                <img src="{{ STATIC_URL }}images/Analizador_Version_Descriptiva.jpg" alt="Formato Descriptivo" class="img-fluid mb-3" style="max-height: 200px;">
+                <p>
+                    Esta versión es más cercana al entorno profesional, permitiendo analizar la 
+                    descripción detallada de cada una de las experiencias de la hoja de vida.
+                </p>
+                <img src="{{ STATIC_URL }}images/Ejemplo_HV_Descriptiva.jpg" alt="Ejemplo Descriptivo" class="img-fluid mb-3" style="max-height: 200px;">
+                <div class="alert alert-info">
+                    <h5>Recomendaciones</h5>
+                    <ul class="text-start">
+                        <li>Organiza tu HV en formato descriptivo para cada cargo o proyecto</li>
+                        <li>Utiliza negrita para identificar la experiencia</li>
+                        <li>Usa guiones para detallar las acciones realizadas en cada ítem</li>
+                        <li>Evita usar tablas para la sección de experiencia</li>
+                    </ul>
+                </div>
+                <a href="{% url 'evaluator:descriptive' %}" class="btn btn-primary btn-lg">Ir a Evaluador Descriptivo</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-8 mx-auto">
+        <h3 class="text-center mb-3">Descargar Plantilla de Hoja de Vida</h3>
+        <div class="d-flex justify-content-center gap-3">
+            <a href="{{ MEDIA_URL }}templates/Plantilla_HV_Simplificada.pdf" class="btn btn-success">
+                <i class="fas fa-download"></i> Plantilla Simplificada
+            </a>
+            <a href="{{ MEDIA_URL }}templates/Plantilla_HV_Descriptiva.pdf" class="btn btn-success">
+                <i class="fas fa-download"></i> Plantilla Descriptiva
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="disclaimer mt-5">
+    ⚠️ DISCLAIMER: LA INFORMACIÓN PROPORCIONADA POR ESTA HERRAMIENTA NO REPRESENTA NINGÚN TIPO DE DECISIÓN, SU FIN ES MERAMENTE ILUSTRATIVO
+</div>
+{% endblock %}
