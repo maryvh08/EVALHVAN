@@ -1,0 +1,66 @@
+{% extends 'evaluator/base.html' %}
+
+{% block title %}Historial de Evaluaciones - Evaluador de Hojas de Vida ANEIAP{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="text-center mb-0">Historial de Evaluaciones</h2>
+            </div>
+            <div class="card-body">
+                {% if evaluations %}
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Candidato</th>
+                                    <th>Cargo</th>
+                                    <th>Capítulo</th>
+                                    <th>Formato</th>
+                                    <th>Puntaje</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for eval in evaluations %}
+                                    <tr>
+                                        <td>{{ eval.created_at|date:"d/m/Y H:i" }}</td>
+                                        <td>{{ eval.candidate_name }}</td>
+                                        <td>{{ eval.get_position_display }}</td>
+                                        <td>{{ eval.get_chapter_display }}</td>
+                                        <td>{{ eval.get_format_type_display }}</td>
+                                        <td class="{% if eval.score >= 4 %}text-success{% elif eval.score >= 3 %}text-warning{% else %}text-danger{% endif %}">
+                                            {{ eval.score|floatformat:2 }}
+                                        </td>
+                                        <td>
+                                            <a href="{% url 'evaluator:view_report' eval.pk %}" class="btn btn-sm btn-primary">
+                                                <i class="fas fa-eye"></i> Ver
+                                            </a>
+                                            <a href="{% url 'evaluator:download_report' eval.pk %}" class="btn btn-sm btn-success">
+                                                <i class="fas fa-download"></i> Descargar
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <p class="mb-0">No hay evaluaciones registradas actualmente.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="text-center mt-4">
+            <a href="{% url 'evaluator:home' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver al Inicio
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
